@@ -1,0 +1,20 @@
+# bmad-loop
+.bmad-loop/runs/
+.bmad-loop/cache/
+
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+
+# env
+.env
+.env.local
+.env.*.local
+
+# personal bmad config
+_bmad/config.user.yaml
+_bmad/config.user.toml
+_bmad/custom/config.user.toml
