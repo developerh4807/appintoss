@@ -14,6 +14,10 @@ build/
 .env.local
 .env.*.local
 
+# secondbrain symlink
+notes
+tasks
+
 # personal bmad config
 _bmad/config.user.yaml
 _bmad/config.user.toml
