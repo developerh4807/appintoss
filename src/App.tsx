@@ -1,12 +1,14 @@
 import { Asset, Button, Top } from "@toss/tds-mobile";
 import "./App.css";
 import { InAppAdsPage } from "./pages/InAppAdsPage";
+import { PuzzlePage } from "./pages/PuzzlePage";
 import { useState } from "react";
 
 function App() {
   const [page, setPage] = useState<string | null>(null);
 
   if (page === "iaa") return <InAppAdsPage onBack={() => setPage(null)} />;
+  if (page === "puzzle") return <PuzzlePage onBack={() => setPage(null)} />;
 
   return (
     <>
@@ -47,6 +49,9 @@ function App() {
         </Button>
         <Button color="dark" variant="weak" onClick={() => setPage("iaa")}>
           인앱광고 테스트하기
+        </Button>
+        <Button color="dark" onClick={() => setPage("puzzle")}>
+          패턴매칭 퍼즐 플레이하기
         </Button>
       </div>
 
