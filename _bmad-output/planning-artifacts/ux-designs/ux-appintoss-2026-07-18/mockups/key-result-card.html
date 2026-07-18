@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>key-result-card — 결과(동물 티어) 카드 [NEW 2026-07-19]</title>
+<style>
+/*
+  Governing spine sections:
+  - DESIGN.md: Colors (legendarySparkle — 상위 티어 전용으로 재활용), Components (resultCard, capsule 안무 공유)
+  - EXPERIENCE.md: Component Patterns (Result card, Share button, Invite button), Game Feel & Juice
+    (리빌 클라이맥스, 상위 티어 legendarySparkle), State Patterns (미니앱 승인 대기 중), Key Flows (Flow 4 전체)
+  이 화면은 v1 세션(2026-07-18)엔 존재하지 않았다 — PRD FR-18~20이 새로 만든 화면. mockups/key-gacha.html의
+  capsule 리빌 안무를 그대로 재사용하되, 상위 티어에서만 legendarySparkle 파티클을 추가한다.
+  두 상태를 보여준다: (1) 중위 티어(사슴급, 파티클 없음) (2) 상위 티어(치타급, 파티클 + 초대 버튼 노출 — 승인 후)
+  (3) 승인 전 상태(초대 버튼 숨김, 공유만 노출)
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #ddd8cc;
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  padding: 40px;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  flex-wrap: wrap;
+}
+.caption { text-align: center; font-size: 13px; color: #55504a; margin-top: 10px; max-width: 375px; }
+.frame {
+  width: 375px;
+  height: 812px;
+  background: #FFF8EC;
+  border-radius: 40px;
+  border: 10px solid #1a1712;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.scrim {
+  position: absolute; inset: 0;
+  background: rgba(58,50,42,0.75);
+  display: flex; align-items: center; justify-content: center;
+}
+.card {
+  width: 280px;
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 36px 24px 28px;
+  text-align: center;
+  position: relative;
+}
+.sparkle {
+  position: absolute;
+  font-size: 22px;
+  color: #B98CE0; /* legendarySparkle */
+}
+.sparkle.s1 { top: 14px; left: 20px; }
+.sparkle.s2 { top: 28px; right: 22px; }
+.sparkle.s3 { bottom: 130px; left: 14px; }
+.sparkle.s4 { bottom: 140px; right: 10px; }
+.eyebrow { font-size: 13px; color: #726858; font-weight: 500; margin-bottom: 6px; }
+.tier-emoji { font-size: 72px; margin-bottom: 10px; }
+.tier-name { font-size: 24px; font-weight: 700; color: #3A322A; margin-bottom: 6px; }
+.tier-badge {
+  display: inline-block;
+  font-size: 12px; font-weight: 700;
+  border-radius: 999px; padding: 4px 12px; margin-bottom: 16px;
+}
+.tier-badge.mid { color: #0F6E6B; background: #DCEFEC; }
+.tier-badge.top { color: #8a5bb8; background: #f2e9fa; }
+.stage-line { font-size: 14px; color: #726858; margin-bottom: 22px; }
+.actions { display: flex; flex-direction: column; gap: 10px; }
+.btn-share {
+  background: #FFC93C; color: #3A322A; font-weight: 700; font-size: 15px;
+  border-radius: 999px; padding: 13px 0;
+}
+.btn-invite {
+  background: #0F6E6B; color: #FFFFFF; font-weight: 700; font-size: 15px;
+  border-radius: 999px; padding: 13px 0;
+}
+.hidden-note {
+  font-size: 11px; color: #C9C2B4; margin-top: 4px;
+}
+</style>
+</head>
+<body>
+
+<div>
+  <div class="frame">
+    <div class="scrim">
+      <div class="card">
+        <div class="eyebrow">이번 판 기록</div>
+        <div class="tier-emoji">🦌</div>
+        <div class="tier-name">반응속도 사슴급!</div>
+        <div class="tier-badge mid">스테이지 8 도달</div>
+        <div class="stage-line">다음엔 더 빠르게 도전해봐요</div>
+        <div class="actions">
+          <div class="btn-share">공유하기</div>
+          <div class="btn-invite">초대하고 뽑기권 받기</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">결과 카드 — 중위 티어(사슴급). legendarySparkle 파티클 없음(치타급/매급 전용). 미니앱 승인 후 상태라 초대 버튼(FR-20) 노출.</div>
+</div>
+
+<div>
+  <div class="frame">
+    <div class="scrim">
+      <div class="card">
+        <span class="sparkle s1">✨</span>
+        <span class="sparkle s2">✨</span>
+        <span class="sparkle s3">✨</span>
+        <span class="sparkle s4">✨</span>
+        <div class="eyebrow">이번 판 기록</div>
+        <div class="tier-emoji">🐆</div>
+        <div class="tier-name">반응속도 치타급!</div>
+        <div class="tier-badge top">스테이지 13 도달</div>
+        <div class="stage-line">상위 1% 수준의 순발력이에요</div>
+        <div class="actions">
+          <div class="btn-share">공유하기</div>
+          <div class="btn-invite">초대하고 뽑기권 받기</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">결과 카드 — 상위 티어(치타급). legendarySparkle 파티클 등장 + 캡슐과 동일한 흔들림→오픈→바운스 안무 공유. Flow 4 climax(1).</div>
+</div>
+
+<div>
+  <div class="frame">
+    <div class="scrim">
+      <div class="card">
+        <div class="eyebrow">이번 판 기록</div>
+        <div class="tier-emoji">🦊</div>
+        <div class="tier-name">반응속도 여우급!</div>
+        <div class="tier-badge mid">스테이지 10 도달</div>
+        <div class="stage-line">다음엔 더 빠르게 도전해봐요</div>
+        <div class="actions">
+          <div class="btn-share">공유하기</div>
+        </div>
+        <div class="hidden-note">미니앱 승인 전 — 초대 버튼은 승인 후 노출돼요</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">결과 카드 — 미니앱 승인 전 상태. 초대 버튼(FR-20) 숨김, 공유 버튼(FR-19)만 항상 노출. PRD §11 단계적 출시.</div>
+</div>
+
+</body>
+</html>
