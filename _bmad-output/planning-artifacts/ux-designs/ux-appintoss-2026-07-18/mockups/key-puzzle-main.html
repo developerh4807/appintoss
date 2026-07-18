@@ -2,15 +2,21 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<title>key-puzzle-main — 퍼즐(홈) 화면</title>
+<title>key-puzzle-main — 퍼즐(홈) 화면 (2026-07-19 개정 v2)</title>
 <style>
 /*
   Governing spine sections:
-  - DESIGN.md: Colors, Typography, Shapes, Components (tile, progressBar, currencyBadge, bottomNavTab, adBannerSlot)
-  - EXPERIENCE.md: Information Architecture (퍼즐 surface), Component Patterns (Tile, Progress bar, Currency badge, Bottom nav tab, Ad banner slot),
-    State Patterns (스테이지 클리어), Key Flows (Flow 1 step 3-5, Flow 2 step 1-2)
+  - DESIGN.md: Colors (timerBar 재사용 accent/error), Components (tile, timerBar — 헤더 시각적 주인공, currencyBadge,
+    bottomNavTab 2탭, adBannerSlot), Brand & Style "타이머는 헤더의 시각적 주인공이다"
+  - EXPERIENCE.md: Information Architecture (퍼즐 surface), Component Patterns (Tile, Timer bar,
+    Currency badge, Bottom nav tab, Ad banner slot, Retry counter), State Patterns (스테이지 클리어, 타이머 임계 진입,
+    스테이지 실패), Accessibility Floor (비네트는 화면 가장자리만, 풀스크린 플래시 금지), Key Flows (Flow 1 step 1-4,
+    Flow 2 step 2-3, Flow 3a)
   Display font (Cafe24 Supermagic) is a webfont — not embeddable offline. This mock falls back to a rounded system stack;
   swap at implementation per DESIGN.md Typography [ASSUMPTION].
+  [UPDATED 2026-07-19 v2] 사용자 리뷰 반영 — 스테이지 진행바 완전 제거(매칭게임에 진행률 무의미), 타이머 바를
+  헤더의 시각적 주인공으로 격상(2배 두께, 큰 숫자), 임계 구간에 글로우 + 화면 가장자리 비네트 추가(풀스크린
+  플래시 아님, 광과민성 안전 — Accessibility Floor 참고).
 */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -22,7 +28,7 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   flex-wrap: wrap;
 }
-.caption { text-align: center; font-size: 13px; color: #55504a; margin-top: 10px; }
+.caption { text-align: center; font-size: 13px; color: #55504a; margin-top: 10px; max-width: 375px; }
 .frame {
   width: 375px;
   height: 812px;
@@ -34,38 +40,56 @@ body {
   display: flex;
   flex-direction: column;
 }
+.frame.vignette::before {
+  content: '';
+  position: absolute; inset: 0;
+  box-shadow: inset 0 0 46px 14px rgba(255,107,92,0.55); /* error, 가장자리만 */
+  pointer-events: none;
+  z-index: 5;
+  animation: vignette-pulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes vignette-pulse { from { opacity: 0.55; } to { opacity: 1; } }
+
 .header {
-  padding: 20px 20px 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  padding: 20px 20px 14px;
   background: #FFF8EC;
 }
+.header-top { display: flex; justify-content: space-between; align-items: flex-start; }
 .header h1 {
   font-size: 22px;
   font-weight: 700;
   color: #3A322A; /* inkPrimary */
 }
-.stage-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 8px;
-}
-.progress-track {
-  width: 130px;
-  height: 10px;
+.stage-label { font-size: 13px; color: #726858; font-weight: 500; margin-top: 2px; }
+
+.timer-row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.timer-track {
+  flex: 1;
+  height: 20px; /* 옛 progress bar의 2배 — 헤더의 시각적 주인공 */
   border-radius: 999px;
   background: #EDE6D6; /* border */
   overflow: hidden;
 }
-.progress-fill {
-  width: 60%;
-  height: 100%;
-  background: #FFC93C; /* primary */
-  border-radius: 999px;
+.timer-fill { height: 100%; background: #0F6E6B; border-radius: 999px; } /* accent, 평상시 */
+.timer-fill.critical {
+  background: #FF6B5C; /* error */
+  box-shadow: 0 0 16px 4px rgba(255,107,92,0.6);
+  animation: bar-pulse 0.6s ease-in-out infinite alternate;
 }
-.stage-label { font-size: 14px; color: #8C8275; font-weight: 500; }
+@keyframes bar-pulse { from { transform: scaleY(1); } to { transform: scaleY(1.15); } }
+.timer-seconds { font-size: 22px; font-weight: 700; color: #0F6E6B; font-variant-numeric: tabular-nums; min-width: 46px; text-align: right; }
+/* [FIXED 2026-07-19] error를 텍스트 글리프 색으로 쓰면 surfaceBase 위 대비 ≈2.65:1로 AA 미달(review-accessibility.md critical).
+   텍스트는 inkPrimary로 유지하고 error는 칩 보더로만 사용 — 대비 ≈11:1. */
+.timer-seconds.critical {
+  color: #3A322A; /* inkPrimary, 유지 */
+  font-size: 26px;
+  background: #FFFFFF; /* surfaceRaised */
+  border: 2px solid #FF6B5C; /* error, 보더로만 */
+  border-radius: 999px;
+  padding: 2px 12px;
+  min-width: 0;
+}
+
 .currency-badge {
   display: flex;
   align-items: center;
@@ -77,8 +101,13 @@ body {
   font-weight: 700;
   color: #F2A93B; /* currencyGold */
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .currency-badge .icon { font-size: 16px; }
+.best-badge {
+  font-size: 11px; font-weight: 700; color: #0F6E6B;
+  background: #DCEFEC; border-radius: 999px; padding: 3px 10px; margin-top: 6px; display: inline-block;
+}
 
 .board {
   flex: 1;
@@ -87,6 +116,7 @@ body {
   gap: 12px;
   padding: 8px 20px 20px;
   align-content: start;
+  position: relative;
 }
 .tile {
   aspect-ratio: 1;
@@ -108,6 +138,18 @@ body {
 .tile.matched-ghost {
   opacity: 0.15;
 }
+.penalty-float {
+  position: absolute;
+  top: 4px;
+  right: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #3A322A; /* inkPrimary — [FIXED 2026-07-19] error 텍스트 대비 미달, 칩 보더로 대체 */
+  background: #FFFFFF;
+  border: 2px solid #FF6B5C; /* error */
+  border-radius: 999px;
+  padding: 1px 9px;
+}
 
 .ad-slot {
   margin: 0 20px 8px;
@@ -122,12 +164,12 @@ body {
 .ad-slot .tag {
   font-size: 10px;
   font-weight: 700;
-  color: #8C8275;
+  color: #726858;
   background: #F3EFE4;
   border-radius: 6px;
   padding: 2px 6px;
 }
-.ad-slot .placeholder { font-size: 12px; color: #8C8275; }
+.ad-slot .placeholder { font-size: 12px; color: #726858; }
 
 .tabbar {
   display: flex;
@@ -140,10 +182,15 @@ body {
   text-align: center;
   font-size: 12px;
   font-weight: 700;
-  color: #8C8275; /* inkSecondary */
+  color: #726858; /* inkSecondary */
 }
-.tab .glyph { display: block; font-size: 20px; margin-bottom: 2px; }
+.tab .glyph {
+  display: inline-block; font-size: 18px; margin-bottom: 2px;
+  width: 30px; height: 22px; line-height: 22px; border-radius: 999px;
+}
+/* [FIXED 2026-07-19] 액티브 탭이 색상 단독 신호였음(review-accessibility.md medium) — accentLight 배경 칩 추가 */
 .tab.active { color: #0F6E6B; /* accent */ }
+.tab.active .glyph { background: #DCEFEC; /* accentLight */ }
 
 .overlay {
   position: absolute;
@@ -152,6 +199,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 10;
 }
 .dialog {
   width: 280px;
@@ -161,7 +209,11 @@ body {
   text-align: center;
 }
 .dialog .headline { font-size: 20px; font-weight: 700; color: #3A322A; margin-bottom: 8px; }
-.dialog .body { font-size: 15px; color: #8C8275; margin-bottom: 20px; line-height: 1.5; }
+.dialog .body { font-size: 15px; color: #726858; margin-bottom: 20px; line-height: 1.5; }
+.dialog .record-badge {
+  display: inline-block; font-size: 12px; font-weight: 700; color: #0F6E6B;
+  background: #DCEFEC; border-radius: 999px; padding: 4px 12px; margin-bottom: 14px;
+}
 .dialog .cta {
   background: #FFC93C;
   color: #3A322A;
@@ -171,11 +223,17 @@ body {
   padding: 14px 0;
   margin-bottom: 8px;
 }
+.dialog .cta.ad {
+  background: #0F6E6B; color: #FFFFFF;
+}
 .dialog .secondary {
   font-size: 14px;
   color: #0F6E6B;
   font-weight: 700;
   padding: 6px 0;
+}
+.retry-counter {
+  font-size: 12px; color: #726858; margin-bottom: 14px;
 }
 </style>
 </head>
@@ -184,14 +242,20 @@ body {
 <div>
   <div class="frame">
     <div class="header">
-      <div>
-        <h1>패턴매칭 퍼즐</h1>
-        <div class="stage-row">
-          <div class="progress-track"><div class="progress-fill"></div></div>
-          <span class="stage-label">스테이지 7</span>
+      <div class="header-top">
+        <div>
+          <h1>패턴매칭 퍼즐</h1>
+          <div class="stage-label">스테이지 7</div>
+        </div>
+        <div>
+          <div class="currency-badge"><span class="icon">🪙</span>21</div>
+          <div class="best-badge">최고 8</div>
         </div>
       </div>
-      <div class="currency-badge"><span class="icon">🪙</span>60</div>
+      <div class="timer-row">
+        <div class="timer-track"><div class="timer-fill" style="width:70%"></div></div>
+        <div class="timer-seconds">7</div>
+      </div>
     </div>
 
     <div class="board">
@@ -221,23 +285,25 @@ body {
     <div class="tabbar">
       <div class="tab active"><span class="glyph">🧩</span>퍼즐</div>
       <div class="tab"><span class="glyph">🎁</span>뽑기</div>
-      <div class="tab"><span class="glyph">📖</span>도감</div>
     </div>
   </div>
-  <div class="caption">퍼즐(홈) — 대기 상태. 선택 2칸(accentLight), 매칭 완료(반투명 고스트).</div>
+  <div class="caption">퍼즐(홈) — 평상시 대기 상태. 스테이지 진행바 제거, 타이머 바가 헤더의 시각적 주인공(두꺼운 게이지 + 큰 숫자). 스테이지 번호는 텍스트로만.</div>
 </div>
 
 <div>
   <div class="frame">
     <div class="header">
-      <div>
-        <h1>패턴매칭 퍼즐</h1>
-        <div class="stage-row">
-          <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
-          <span class="stage-label">스테이지 7</span>
+      <div class="header-top">
+        <div>
+          <h1>패턴매칭 퍼즐</h1>
+          <div class="stage-label">스테이지 8</div>
         </div>
+        <div class="currency-badge"><span class="icon">🪙</span>24</div>
       </div>
-      <div class="currency-badge"><span class="icon">🪙</span>60</div>
+      <div class="timer-row">
+        <div class="timer-track"><div class="timer-fill" style="width:90%"></div></div>
+        <div class="timer-seconds">9</div>
+      </div>
     </div>
     <div class="board">
       <div class="tile matched-ghost">🐶</div>
@@ -264,18 +330,114 @@ body {
     <div class="tabbar">
       <div class="tab active"><span class="glyph">🧩</span>퍼즐</div>
       <div class="tab"><span class="glyph">🎁</span>뽑기</div>
-      <div class="tab"><span class="glyph">📖</span>도감</div>
     </div>
     <div class="overlay">
       <div class="dialog">
+        <div class="record-badge">🏆 최고 기록 경신!</div>
         <div class="headline">스테이지 클리어!</div>
-        <div class="body">재화 10개를 획득했어요.<br/>다음 스테이지로 이동할게요.</div>
+        <div class="body">재화 1개를 획득했어요.<br/>다음 스테이지로 이동할게요.</div>
         <div class="cta">계속하기</div>
-        <div class="secondary">뽑으러 가기 →</div>
+        <div class="secondary">결과 카드 보기 →</div>
       </div>
     </div>
   </div>
-  <div class="caption">클리어 다이얼로그 상태 — State Patterns "스테이지 클리어", Flow 1 step 4-6</div>
+  <div class="caption">클리어 다이얼로그 — 개인 최고 기록 경신 시 배지 추가(FR-8). Flow 2 step 5.</div>
+</div>
+
+<div>
+  <div class="frame vignette">
+    <div class="header">
+      <div class="header-top">
+        <div>
+          <h1>패턴매칭 퍼즐</h1>
+          <div class="stage-label">스테이지 8</div>
+        </div>
+        <div class="currency-badge"><span class="icon">🪙</span>21</div>
+      </div>
+      <div class="timer-row">
+        <div class="timer-track"><div class="timer-fill critical" style="width:18%"></div></div>
+        <div class="timer-seconds critical">2</div>
+      </div>
+    </div>
+    <div class="board">
+      <span class="penalty-float">−3</span>
+      <div class="tile wrong">🐶</div>
+      <div class="tile wrong">🐻</div>
+      <div class="tile matched-ghost">🦊</div>
+      <div class="tile">🐰</div>
+      <div class="tile">🦁</div>
+      <div class="tile">🐨</div>
+      <div class="tile">🐻</div>
+      <div class="tile">🐯</div>
+      <div class="tile">🐰</div>
+      <div class="tile">🦁</div>
+      <div class="tile matched-ghost">🦊</div>
+      <div class="tile">🐼</div>
+      <div class="tile">🐨</div>
+      <div class="tile">🐯</div>
+      <div class="tile">🐼</div>
+      <div class="tile">🐶</div>
+    </div>
+    <div class="ad-slot">
+      <span class="tag">광고</span>
+      <span class="placeholder">배너 광고 영역</span>
+    </div>
+    <div class="tabbar">
+      <div class="tab active"><span class="glyph">🧩</span>퍼즐</div>
+      <div class="tab"><span class="glyph">🎁</span>뽑기</div>
+    </div>
+  </div>
+  <div class="caption">타이머 임계 구간(잔여 25% 이하) + 오답 페널티 — 타이머 바 error 펄스+글로우, 숫자 확대(2), 화면 가장자리 비네트 맥동(풀스크린 플래시 아님, 광과민성 안전). 오답 타일 error 플래시 + "−3" 플로팅.</div>
+</div>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <div class="header-top">
+        <div>
+          <h1>패턴매칭 퍼즐</h1>
+          <div class="stage-label">스테이지 8</div>
+        </div>
+        <div class="currency-badge"><span class="icon">🪙</span>21</div>
+      </div>
+      <div class="timer-row">
+        <div class="timer-track"><div class="timer-fill critical" style="width:0%"></div></div>
+        <div class="timer-seconds critical">0</div>
+      </div>
+    </div>
+    <div class="board">
+      <div class="tile">🐶</div>
+      <div class="tile">🐻</div>
+      <div class="tile matched-ghost">🦊</div>
+      <div class="tile">🐰</div>
+      <div class="tile">🦁</div>
+      <div class="tile">🐨</div>
+      <div class="tile">🐻</div>
+      <div class="tile">🐯</div>
+      <div class="tile">🐰</div>
+      <div class="tile">🦁</div>
+      <div class="tile matched-ghost">🦊</div>
+      <div class="tile">🐼</div>
+      <div class="tile">🐨</div>
+      <div class="tile">🐯</div>
+      <div class="tile">🐼</div>
+      <div class="tile">🐶</div>
+    </div>
+    <div class="tabbar">
+      <div class="tab active"><span class="glyph">🧩</span>퍼즐</div>
+      <div class="tab"><span class="glyph">🎁</span>뽑기</div>
+    </div>
+    <div class="overlay">
+      <div class="dialog">
+        <div class="headline">시간이 다 됐어요!</div>
+        <div class="body">광고 보고 이어서 할까요?<br/>아니면 처음부터 다시 도전해봐요.</div>
+        <div class="retry-counter">무료 재시도 1/2회 사용함</div>
+        <div class="cta ad">광고 보고 이어하기</div>
+        <div class="secondary">무료로 다시 도전하기</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">스테이지 실패 다이얼로그 — 제한시간 0 도달(FR-6). Retry counter로 무료 재시도 잔여 횟수 표시(FR-7), 3회차부터 무료 재시도 버튼 비활성. Flow 3a.</div>
 </div>
 
 </body>
