@@ -34,6 +34,7 @@ interface UseCurrencyReturn {
   currency: number;
   stage: number;
   clearStage: (reward: number) => void;
+  spendCurrency: (amount: number) => boolean;
 }
 
 export function useCurrency(): UseCurrencyReturn {
@@ -54,5 +55,19 @@ export function useCurrency(): UseCurrencyReturn {
     }));
   }, []);
 
-  return { currency: progress.currency, stage: progress.stage, clearStage };
+  const spendCurrency = useCallback(
+    (amount: number): boolean => {
+      if (progress.currency < amount) return false;
+      setProgress((prev) => ({ ...prev, currency: prev.currency - amount }));
+      return true;
+    },
+    [progress.currency],
+  );
+
+  return {
+    currency: progress.currency,
+    stage: progress.stage,
+    clearStage,
+    spendCurrency,
+  };
 }
