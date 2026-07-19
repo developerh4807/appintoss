@@ -1,14 +1,14 @@
 import { Asset, Button, Top } from "@toss/tds-mobile";
 import "./App.css";
+import { GameShell } from "./pages/GameShell";
 import { InAppAdsPage } from "./pages/InAppAdsPage";
-import { PuzzlePage } from "./pages/PuzzlePage";
 import { useState } from "react";
 
 function App() {
   const [page, setPage] = useState<string | null>(null);
 
   if (page === "iaa") return <InAppAdsPage onBack={() => setPage(null)} />;
-  if (page === "puzzle") return <PuzzlePage onBack={() => setPage(null)} />;
+  if (page === "puzzle") return <GameShell onBack={() => setPage(null)} />;
 
   return (
     <>

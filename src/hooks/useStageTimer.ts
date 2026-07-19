@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-interface UseStageTimerReturn {
+export interface UseStageTimerReturn {
   timeLeft: number;
   isPaused: boolean;
   isExpired: boolean;
