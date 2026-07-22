@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>key-gacha — 뽑기·인벤토리 화면 (2026-07-20 개정)</title>
+<style>
+/*
+  Governing spine sections:
+  - DESIGN.md: Colors (legendarySparkle는 이제 결과카드 전용 — 이 화면엔 미사용), Components (capsule, itemIcon, segmentControl)
+  - EXPERIENCE.md: Information Architecture (뽑기/인벤토리 세그먼트, 스테이지 클리어 분기로만 진입), Component Patterns
+    (Capsule, Segment control, Inventory item row, Continue bar), Game Feel & Juice, State Patterns (재화 부족,
+    인벤토리 빈 상태, 첫 아이템 획득), Key Flows (Flow 1 step 6-7, Flow 2 step 5, Flow 3b)
+  [UPDATED 2026-07-20] 하단 탭(퍼즐/뽑기) 완전 제거 — 이 화면은 더 이상 상시 탭으로 진입하지 않고, 스테이지 클리어
+  다이얼로그의 "뽑으러 가기" 분기로만 진입한다(타이머가 없는 구간에서만 접근 가능하게 하려는 의도, § Decision Log
+  2026-07-20). 대신 하단에 "다음 스테이지 시작하기" 바를 상시 노출 — 이 화면의 유일한 탈출구이자 다음 스테이지
+  진입 트리거. 아이템 사전 사용은 게임 중 헤더의 아이템 트레이(key-puzzle-main.html 참고)로 이동했지만, 여기
+  인벤토리 세그먼트에서도 여전히 확인/사용 가능(스테이지 시작 전 미리 쓰고 싶은 경우).
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #ddd8cc;
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  padding: 40px;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  flex-wrap: wrap;
+}
+.caption { text-align: center; font-size: 13px; color: #55504a; margin-top: 10px; max-width: 375px; }
+.frame {
+  width: 375px;
+  height: 812px;
+  background: #FFF8EC;
+  border-radius: 40px;
+  border: 10px solid #1a1712;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  padding: 20px 20px 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.header h1 { font-size: 22px; font-weight: 700; color: #3A322A; }
+.currency-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: #FFFFFF; border-radius: 999px; padding: 8px 14px;
+  box-shadow: 0 2px 8px rgba(58,50,42,0.08);
+  font-weight: 700; color: #F2A93B; font-variant-numeric: tabular-nums;
+}
+
+.segment {
+  margin: 0 20px 16px;
+  background: #EDE6D6; /* border 톤 트랙 */
+  border-radius: 999px;
+  padding: 4px;
+  display: flex;
+}
+.segment .seg-item {
+  flex: 1;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 0;
+  border-radius: 999px;
+  color: #726858; /* inkSecondary, 비활성 */
+}
+.segment .seg-item.active {
+  background: #0F6E6B; /* accent */
+  color: #FFFFFF; /* surfaceRaised */
+}
+
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  padding: 20px;
+}
+.capsule {
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #0F6E6B 0%, #0c5754 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 60px;
+  box-shadow: 0 8px 24px rgba(15,110,107,0.35);
+}
+.hint { font-size: 15px; color: #726858; text-align: center; line-height: 1.5; }
+.cta {
+  width: 240px;
+  background: #FFC93C;
+  color: #3A322A;
+  font-weight: 700;
+  font-size: 17px;
+  border-radius: 999px;
+  padding: 16px 0;
+  text-align: center;
+}
+.cost { font-size: 13px; color: #726858; }
+
+/* [NEW 2026-07-20] 하단 탭을 대체하는 유일한 탈출구 — 다음 스테이지로 진입하는 순간까지 타이머는 시작되지 않는다 */
+.continue-bar {
+  padding: 14px 20px 20px;
+  background: #FFFFFF;
+  border-top: 1px solid #EDE6D6;
+}
+.continue-bar .cta-continue {
+  width: 100%;
+  background: #FFC93C;
+  color: #3A322A;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 999px;
+  padding: 14px 0;
+  text-align: center;
+}
+
+/* Reveal state */
+.reveal-scrim {
+  position: absolute; inset: 0;
+  background: rgba(58,50,42,0.75);
+  display: flex; align-items: center; justify-content: center;
+}
+.reveal-card {
+  width: 260px;
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 32px 24px;
+  text-align: center;
+  position: relative;
+}
+.reveal-emoji { font-size: 68px; margin-bottom: 12px; }
+.reveal-name { font-size: 20px; font-weight: 700; color: #3A322A; margin-bottom: 4px; }
+.reveal-desc {
+  font-size: 13px; color: #726858; margin-bottom: 18px; line-height: 1.5;
+}
+.reveal-cta {
+  background: #0F6E6B; color: #FFFFFF; font-weight: 700; font-size: 15px;
+  border-radius: 999px; padding: 12px 0;
+}
+
+/* Inventory segment */
+.inv-list { flex: 1; padding: 0 20px 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.inv-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px; text-align: center; }
+.inv-empty .emoji { font-size: 48px; }
+.inv-empty .msg { font-size: 15px; color: #726858; line-height: 1.5; }
+.inv-row {
+  background: #FFFFFF; border-radius: 20px; padding: 14px 16px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 0 2px 8px rgba(58,50,42,0.06);
+}
+.inv-row .icon-chip {
+  width: 48px; height: 48px; border-radius: 12px; background: #DCEFEC;
+  display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
+}
+.inv-row .info { flex: 1; }
+.inv-row .name { font-size: 15px; font-weight: 700; color: #3A322A; }
+.inv-row .desc { font-size: 12px; color: #726858; margin-top: 2px; }
+.inv-row .count { font-size: 13px; font-weight: 700; color: #0F6E6B; }
+.tooltip {
+  position: absolute;
+  bottom: 90px; left: 20px; right: 20px;
+  background: #3A322A; color: #FFF8EC;
+  border-radius: 16px; padding: 14px 16px;
+  font-size: 13px; line-height: 1.5;
+}
+.tooltip::after {
+  content: ''; position: absolute; bottom: -8px; left: 40px;
+  border-width: 8px 8px 0; border-style: solid; border-color: #3A322A transparent transparent;
+}
+</style>
+</head>
+<body>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <h1>뽑기</h1>
+      <div class="currency-badge">🪙 21</div>
+    </div>
+    <div class="segment">
+      <div class="seg-item active">뽑기</div>
+      <div class="seg-item">인벤토리</div>
+    </div>
+    <div class="stage">
+      <div class="capsule">🎁</div>
+      <div class="hint">재화 3개로 기능성 아이템을<br/>하나 뽑을 수 있어요</div>
+      <div class="cta">뽑기</div>
+      <div class="cost">재화 3개 소모 · 광고 보고 무료로 뽑기</div>
+    </div>
+    <div class="continue-bar"><div class="cta-continue">다음 스테이지 시작하기</div></div>
+  </div>
+  <div class="caption">뽑기 세그먼트 — 대기 상태, 재화 충분. `[UPDATED 2026-07-20]` 하단 탭 제거, 스테이지 클리어 다이얼로그의 "뽑으러 가기"로만 진입. 하단 "다음 스테이지 시작하기"가 이 화면의 유일한 탈출구 — 누르는 순간 다음 스테이지 타이머가 시작된다.</div>
+</div>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <h1>뽑기</h1>
+      <div class="currency-badge">🪙 18</div>
+    </div>
+    <div class="segment">
+      <div class="seg-item active">뽑기</div>
+      <div class="seg-item">인벤토리</div>
+    </div>
+    <div class="stage">
+      <div class="capsule" style="opacity:0.3">🎁</div>
+      <div class="hint">&nbsp;</div>
+      <div class="cta" style="opacity:0.3">뽑기</div>
+    </div>
+    <div class="continue-bar"><div class="cta-continue">다음 스테이지 시작하기</div></div>
+    <div class="reveal-scrim">
+      <div class="reveal-card">
+        <div class="reveal-emoji">🐿️⏱️</div>
+        <div class="reveal-name">시간 회복</div>
+        <div class="reveal-desc">다람쥐가 시계를 내밀며 등장!<br/>제한시간을 즉시 +5초 늘려줘요.</div>
+        <div class="reveal-cta">인벤토리에서 확인하기</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">아이템 리빌 클라이맥스 — 캡슐 안무(흔들림→오픈→바운스)는 그대로, 리빌 대상만 동물 캐릭터에서 동물 모티프 기능성 아이템으로 전환. legendarySparkle 미사용(등급 없음, 결과카드 전용). Flow 1 step 6.</div>
+</div>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <h1>뽑기</h1>
+      <div class="currency-badge">🪙 0</div>
+    </div>
+    <div class="segment">
+      <div class="seg-item">뽑기</div>
+      <div class="seg-item active">인벤토리</div>
+    </div>
+    <div class="inv-empty">
+      <div class="emoji">🎒</div>
+      <div class="msg">아직 보유한 아이템이 없어요<br/>뽑기로 얻어볼까요?</div>
+      <div class="cta" style="width:200px;">뽑기 하러 가기</div>
+    </div>
+    <div class="continue-bar"><div class="cta-continue">다음 스테이지 시작하기</div></div>
+  </div>
+  <div class="caption">인벤토리 세그먼트 — 빈 상태(최초). 예전 도감 빈 상태 카피를 대체.</div>
+</div>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <h1>뽑기</h1>
+      <div class="currency-badge">🪙 21</div>
+    </div>
+    <div class="segment">
+      <div class="seg-item">뽑기</div>
+      <div class="seg-item active">인벤토리</div>
+    </div>
+    <div class="inv-list">
+      <div class="inv-row">
+        <div class="icon-chip">🐿️⏱️</div>
+        <div class="info"><div class="name">시간 회복</div><div class="desc">제한시간 +5초 즉시 추가</div></div>
+        <div class="count">×2</div>
+      </div>
+      <div class="inv-row">
+        <div class="icon-chip">🦔🛡️</div>
+        <div class="info"><div class="name">미스매치 방패</div><div class="desc">다음 미스매치 1회 페널티 없음</div></div>
+        <div class="count">×1</div>
+      </div>
+      <div class="inv-row">
+        <div class="icon-chip">🦝🪙</div>
+        <div class="info"><div class="name">재화 2배</div><div class="desc">다음 스테이지 클리어 시 재화 2배</div></div>
+        <div class="count">×1</div>
+      </div>
+    </div>
+    <div class="tooltip">이 아이템은 게임 중 헤더의 🎒 버튼으로 바로 쓰거나, 여기서 다음 스테이지 시작 전에 미리 써도 돼요.</div>
+    <div class="continue-bar"><div class="cta-continue">다음 스테이지 시작하기</div></div>
+  </div>
+  <div class="caption">인벤토리 세그먼트 — 보유 아이템 3종(가벼운 동물 모티프 일러스트), 첫 획득 시 1회성 컨텍스트 툴팁(FR-9, 문구는 게임 중 아이템 트레이 도입에 맞춰 갱신). Flow 1 step 7, Flow 2 step 4-5.</div>
+</div>
+
+</body>
+</html>

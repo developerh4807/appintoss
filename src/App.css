@@ -11,3 +11,14 @@
     margin: 0 auto;
   }
 }
+
+@keyframes splash-dot-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+  }
+  40% {
+    opacity: 1;
+  }
+}

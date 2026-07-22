@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>key-gacha — 뽑기 화면</title>
+<style>
+/*
+  Governing spine sections:
+  - DESIGN.md: Colors (legendarySparkle), Components (capsule), Elevation & Depth
+  - EXPERIENCE.md: Component Patterns (Capsule), Game Feel & Juice, State Patterns (재화 부족),
+    Key Flows (Flow 1 step 7 climax, Flow 3 전체)
+  Two states shown side by side: 대기(재화 충분) / 리빌 순간(캡슐 오픈).
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #ddd8cc;
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  padding: 40px;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  flex-wrap: wrap;
+}
+.caption { text-align: center; font-size: 13px; color: #55504a; margin-top: 10px; }
+.frame {
+  width: 375px;
+  height: 812px;
+  background: #FFF8EC;
+  border-radius: 40px;
+  border: 10px solid #1a1712;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  padding: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.header h1 { font-size: 22px; font-weight: 700; color: #3A322A; }
+.currency-badge {
+  display: flex; align-items: center; gap: 6px;
+  background: #FFFFFF; border-radius: 999px; padding: 8px 14px;
+  box-shadow: 0 2px 8px rgba(58,50,42,0.08);
+  font-weight: 700; color: #F2A93B; font-variant-numeric: tabular-nums;
+}
+.stage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 20px;
+}
+.capsule {
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #0F6E6B 0%, #0c5754 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64px;
+  box-shadow: 0 8px 24px rgba(15,110,107,0.35);
+}
+.hint { font-size: 15px; color: #8C8275; text-align: center; line-height: 1.5; }
+.cta {
+  width: 240px;
+  background: #FFC93C;
+  color: #3A322A;
+  font-weight: 700;
+  font-size: 17px;
+  border-radius: 999px;
+  padding: 16px 0;
+  text-align: center;
+}
+.cost { font-size: 13px; color: #8C8275; }
+
+.tabbar {
+  display: flex;
+  border-top: 1px solid #EDE6D6;
+  background: #FFFFFF;
+}
+.tab { flex: 1; padding: 10px 0 14px; text-align: center; font-size: 12px; font-weight: 700; color: #8C8275; }
+.tab .glyph { display: block; font-size: 20px; margin-bottom: 2px; }
+.tab.active { color: #0F6E6B; }
+
+/* Reveal state */
+.reveal-scrim {
+  position: absolute; inset: 0;
+  background: rgba(58,50,42,0.75);
+  display: flex; align-items: center; justify-content: center;
+}
+.reveal-card {
+  width: 260px;
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 32px 24px;
+  text-align: center;
+  position: relative;
+}
+.sparkle {
+  position: absolute;
+  font-size: 22px;
+  color: #B98CE0;
+}
+.sparkle.s1 { top: 12px; left: 18px; }
+.sparkle.s2 { top: 24px; right: 20px; }
+.sparkle.s3 { bottom: 60px; left: 12px; }
+.reveal-emoji { font-size: 72px; margin-bottom: 12px; }
+.reveal-name { font-size: 20px; font-weight: 700; color: #3A322A; margin-bottom: 4px; }
+.reveal-rarity {
+  display: inline-block;
+  font-size: 12px; font-weight: 700; color: #B98CE0;
+  background: #f2e9fa; border-radius: 999px; padding: 4px 12px; margin-bottom: 18px;
+}
+.reveal-cta {
+  background: #0F6E6B; color: #FFFFFF; font-weight: 700; font-size: 15px;
+  border-radius: 999px; padding: 12px 0;
+}
+</style>
+</head>
+<body>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <h1>뽑기</h1>
+      <div class="currency-badge">🪙 60</div>
+    </div>
+    <div class="stage">
+      <div class="capsule">🎁</div>
+      <div class="hint">재화 50개로 동물 캐릭터를<br/>한 마리 뽑을 수 있어요</div>
+      <div class="cta">뽑기</div>
+      <div class="cost">재화 50개 소모 · 광고 보고 무료로 뽑기</div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><span class="glyph">🧩</span>퍼즐</div>
+      <div class="tab active"><span class="glyph">🎁</span>뽑기</div>
+      <div class="tab"><span class="glyph">📖</span>도감</div>
+    </div>
+  </div>
+  <div class="caption">뽑기 대기 상태 — Component Patterns "Capsule", 재화 충분</div>
+</div>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <h1>뽑기</h1>
+      <div class="currency-badge">🪙 10</div>
+    </div>
+    <div class="stage">
+      <div class="capsule" style="opacity:0.3">🎁</div>
+      <div class="hint">&nbsp;</div>
+      <div class="cta" style="opacity:0.3">뽑기</div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><span class="glyph">🧩</span>퍼즐</div>
+      <div class="tab active"><span class="glyph">🎁</span>뽑기</div>
+      <div class="tab"><span class="glyph">📖</span>도감</div>
+    </div>
+    <div class="reveal-scrim">
+      <div class="reveal-card">
+        <span class="sparkle s1">✨</span>
+        <span class="sparkle s2">✨</span>
+        <span class="sparkle s3">✨</span>
+        <div class="reveal-emoji">🦁</div>
+        <div class="reveal-name">황금사자</div>
+        <div class="reveal-rarity">레어</div>
+        <div class="reveal-cta">도감에서 확인하기</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">리빌 클라이맥스 — Game Feel &amp; Juice, legendarySparkle 파티클, Flow 1 step 7 / Flow 3 step 5</div>
+</div>
+
+</body>
+</html>
