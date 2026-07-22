@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>key-splash — 브랜드 스플래시 화면 (2026-07-20 신규)</title>
+<style>
+/*
+  Governing spine sections:
+  - DESIGN.md: Colors (primary/accent/surfaceBase 그대로 재사용, 신규 토큰 없음), Components (splashScreen),
+    Brand & Style ("맞추는 즐거움" 톤 그대로 첫 화면에 계승)
+  - EXPERIENCE.md: Information Architecture (브랜드 스플래시 surface, 신규), Component Patterns (Splash screen),
+    State Patterns (콜드 오픈 초기화), Key Flows (Flow 1 step 0, 신규), Accessibility Floor (스플래시 최소/최대 노출 시간)
+  [NEW 2026-07-20] 콜드 오픈 시 별도 화면 없이 바로 퍼즐 진입하던 기존 IA에, 로고/타이틀 노출 + 백그라운드 초기화
+  (광고 SDK 지원 여부 체크 등) 동안만 잠깐 머무는 브랜드 스플래시를 신규 서피스로 추가. 강제 온보딩과는 다르다 —
+  스킵 버튼이 없는 대신 사용자 조작을 요구하지 않고 항상 자동으로, 아주 짧게(하한 600ms, 상한 1200ms) 지나간다.
+  Display font(Cafe24 Supermagic)는 웹폰트 미embed, 라운드 시스템 폰트로 폴백(DESIGN.md Typography [ASSUMPTION] 동일).
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #ddd8cc;
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  padding: 40px;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  flex-wrap: wrap;
+}
+.caption { text-align: center; font-size: 13px; color: #55504a; margin-top: 10px; max-width: 375px; }
+.frame {
+  width: 375px;
+  height: 812px;
+  background: #FFF8EC; /* surfaceBase */
+  border-radius: 40px;
+  border: 10px solid #1a1712;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.emblem {
+  width: 112px;
+  height: 112px;
+  border-radius: 999px; /* rounded/pill */
+  background: #FFC93C; /* primary */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 56px;
+  box-shadow: 0 8px 24px rgba(58,50,42,0.14);
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #3A322A; /* inkPrimary */
+  margin-bottom: 8px;
+  letter-spacing: -0.2px;
+}
+.tagline {
+  font-size: 16px;
+  font-weight: 500;
+  color: #726858; /* inkSecondary */
+  margin-bottom: 56px;
+}
+
+.loading-dots {
+  position: absolute;
+  bottom: 64px;
+  display: flex;
+  gap: 8px;
+}
+.loading-dots .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #0F6E6B; /* accent */
+  opacity: 0.35;
+}
+.loading-dots .dot.active { opacity: 1; }
+
+/* 전환(페이드아웃) 프레임 전용 */
+.frame.transitioning .splash-layer {
+  opacity: 0;
+  transition: opacity 320ms ease-out;
+}
+.splash-layer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #FFF8EC;
+  z-index: 2;
+}
+.home-preview {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+.home-preview .header {
+  padding: 20px 20px 14px;
+  background: #FFF8EC;
+}
+.home-preview h1 { font-size: 22px; font-weight: 700; color: #3A322A; }
+.home-preview .stage-label { font-size: 13px; color: #726858; font-weight: 500; margin-top: 2px; }
+.home-preview .board {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 8px 20px 20px;
+  align-content: start;
+}
+.home-preview .tile {
+  aspect-ratio: 1;
+  border-radius: 20px;
+  background: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  box-shadow: 0 2px 8px rgba(58,50,42,0.06);
+}
+</style>
+</head>
+<body>
+
+<div>
+  <div class="frame">
+    <div class="emblem">🐿️</div>
+    <div class="title">패턴매칭 퍼즐</div>
+    <div class="tagline">맞추는 즐거움</div>
+    <div class="loading-dots">
+      <span class="dot active"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+    </div>
+  </div>
+  <div class="caption">스플래시 — 콜드 오픈 직후. 로고 이모지는 자리표시자(최종 브랜드 에셋으로 교체 필요, [ASSUMPTION]). 이 상태로 최소 600ms 유지, 백그라운드 초기화(광고 SDK 지원 체크 등)가 이보다 오래 걸려도 최대 1200ms에서 강제 전환.</div>
+</div>
+
+<div>
+  <div class="frame transitioning">
+    <div class="home-preview">
+      <div class="header">
+        <h1>패턴매칭 퍼즐</h1>
+        <div class="stage-label">스테이지 1</div>
+      </div>
+      <div class="board">
+        <div class="tile">🐶</div>
+        <div class="tile">🐻</div>
+        <div class="tile">🦊</div>
+        <div class="tile">🐰</div>
+        <div class="tile">🦁</div>
+        <div class="tile">🐨</div>
+        <div class="tile">🐻</div>
+        <div class="tile">🐯</div>
+      </div>
+    </div>
+    <div class="splash-layer">
+      <div class="emblem">🐿️</div>
+      <div class="title">패턴매칭 퍼즐</div>
+      <div class="tagline">맞추는 즐거움</div>
+    </div>
+  </div>
+  <div class="caption">스플래시 → 퍼즐 홈 전환 — 320ms 페이드아웃으로 스테이지 1이 드러남. 별도 "시작하기" 버튼 없이 완전 자동 전환(강제 온보딩과 구분되는 지점 — 조작 요구 없음). `[UPDATED 2026-07-20]` 하단 탭바는 이제 없음 — 뽑기는 스테이지 클리어 시점의 선택지로만 진입(key-puzzle-main.html 참고).</div>
+</div>
+
+</body>
+</html>

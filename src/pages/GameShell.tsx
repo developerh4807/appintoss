@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@toss/tds-mobile";
 
-import type { GameTab } from "../components/BottomTabBar";
-import { BottomTabBar } from "../components/BottomTabBar";
 import { initialSecondsForStage } from "../game/balance";
 import { itemDef, PULL_COST, rollItem } from "../game/items";
 import type { ItemType } from "../game/items";
 import { useCurrency } from "../hooks/useCurrency";
 import { useDailyAdCap } from "../hooks/useDailyAdCap";
+import { useGlobalRetryCap } from "../hooks/useGlobalRetryCap";
 import { useInAppAds } from "../hooks/useInAppAds";
 import { useInventory } from "../hooks/useInventory";
 import { useStageTimer } from "../hooks/useStageTimer";
@@ -20,13 +19,13 @@ import { PuzzlePage } from "./PuzzlePage";
 const PULL_AD_ID = "ait-ad-test-rewarded-id";
 const BANNER_AD_ID = "ait-ad-test-banner-id";
 
-interface GameShellProps {
-  onBack: () => void;
-}
+type Screen = "puzzle" | "gacha";
 
-export function GameShell({ onBack }: GameShellProps) {
-  const [tab, setTab] = useState<GameTab>("puzzle");
-  const { currency, stage, clearStage, spendCurrency } = useCurrency();
+export function GameShell() {
+  // [UPDATED 2026-07-20] 하단 탭 제거 — 뽑기는 스테이지 클리어 다이얼로그의 분기로만 진입한다.
+  // 타이머가 도는 스테이지 중엔 화면 전환 자체가 불가능해 "보이지 않는 동안 시간이 새는" 문제가 없다.
+  const [screen, setScreen] = useState<Screen>("puzzle");
+  const { currency, stage, addReward, advanceStage, spendCurrency } = useCurrency();
   const { items, addItem, consumeItem } = useInventory();
   const [shieldActive, setShieldActive] = useState(false);
   const [doubleRewardActive, setDoubleRewardActive] = useState(false);
@@ -34,6 +33,7 @@ export function GameShell({ onBack }: GameShellProps) {
   const toast = useToast();
   const pullAd = useInAppAds(PULL_AD_ID);
   const adCap = useDailyAdCap();
+  const retryCap = useGlobalRetryCap();
   const timer = useStageTimer(initialSecondsForStage(stage));
   const banner = useTossBanner();
   const bannerRef = useRef<HTMLDivElement>(null);
@@ -84,6 +84,18 @@ export function GameShell({ onBack }: GameShellProps) {
     }
   };
 
+  // 뽑기 화면으로 이동만 할 뿐 스테이지/타이머는 건드리지 않는다 — 다음 스테이지 진행은
+  // handleContinueToNextStage에서만 일어난다.
+  const handleGoToGacha = () => setScreen("gacha");
+
+  // "다음 스테이지" 버튼(퍼즐 클리어 다이얼로그)과 "다음 스테이지 시작하기" 버튼(뽑기 화면)의
+  // 공통 진입점 — 여기서만 스테이지를 올린다. PuzzlePage가 이 시점에 (재)마운트되며 그때
+  // 비로소 다음 스테이지 타이머가 시작된다.
+  const handleContinueToNextStage = () => {
+    advanceStage();
+    setScreen("puzzle");
+  };
+
   return (
     <div
       style={{
@@ -94,50 +106,24 @@ export function GameShell({ onBack }: GameShellProps) {
         background: colors.surfaceBase,
       }}
     >
-      <button
-        onClick={onBack}
-        style={{
-          alignSelf: "flex-start",
-          margin: "8px 0 0 12px",
-          background: "none",
-          border: "none",
-          color: colors.inkSecondary,
-          fontSize: "13px",
-          cursor: "pointer",
-        }}
-      >
-        ← 홈으로
-      </button>
-
-      <div
-        style={{
-          display: tab === "puzzle" ? "flex" : "none",
-          flexDirection: "column",
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
+      {screen === "puzzle" ? (
         <PuzzlePage
           currency={currency}
           stage={stage}
-          clearStage={clearStage}
+          items={items}
+          onUseItem={handleUseItem}
+          onReward={addReward}
+          onAdvanceStage={handleContinueToNextStage}
+          onGoToGacha={handleGoToGacha}
           timer={timer}
           shieldActive={shieldActive}
           onConsumeShield={() => setShieldActive(false)}
           doubleRewardActive={doubleRewardActive}
           onConsumeDoubleReward={() => setDoubleRewardActive(false)}
           adCap={adCap}
+          retryCap={retryCap}
         />
-      </div>
-
-      <div
-        style={{
-          display: tab === "gacha" ? "flex" : "none",
-          flexDirection: "column",
-          flex: 1,
-          minHeight: 0,
-        }}
-      >
+      ) : (
         <GachaPage
           currency={currency}
           items={items}
@@ -154,8 +140,9 @@ export function GameShell({ onBack }: GameShellProps) {
             }
             setRevealedItem(null);
           }}
+          onContinue={handleContinueToNextStage}
         />
-      </div>
+      )}
 
       <div
         style={{
@@ -183,8 +170,6 @@ export function GameShell({ onBack }: GameShellProps) {
         </span>
         <div ref={bannerRef} style={{ flex: 1, height: "96px" }} />
       </div>
-
-      <BottomTabBar active={tab} onChange={setTab} />
     </div>
   );
 }

@@ -1,16 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { itemDef, ITEM_POOL, PULL_COST } from "../game/items";
+import { itemDef, ITEM_ILLUSTRATIONS, ITEM_POOL, PULL_COST } from "../game/items";
 import type { ItemType } from "../game/items";
 import { colors } from "../theme";
 
 const TOOLTIP_SEEN_KEY = "appintoss.puzzle.inventoryTooltipSeen";
-
-const ITEM_ILLUSTRATIONS: Record<ItemType, string> = {
-  timeBoost: "🐿️⏱️",
-  mismatchShield: "🦔🛡️",
-  doubleReward: "🦝🪙",
-};
 
 type Segment = "gacha" | "inventory";
 
@@ -25,6 +19,7 @@ interface GachaPageProps {
   onUseItem: (type: ItemType) => void;
   revealedItem: ItemType | null;
   onDismissReveal: () => void;
+  onContinue: () => void;
 }
 
 export function GachaPage({
@@ -38,6 +33,7 @@ export function GachaPage({
   onUseItem,
   revealedItem,
   onDismissReveal,
+  onContinue,
 }: GachaPageProps) {
   const [segment, setSegment] = useState<Segment>("gacha");
   const [showTooltip, setShowTooltip] = useState(false);
@@ -302,6 +298,31 @@ export function GachaPage({
         </div>
       )}
 
+      <div
+        style={{
+          padding: "14px 20px 20px",
+          background: colors.surfaceRaised,
+          borderTop: `1px solid ${colors.border}`,
+        }}
+      >
+        <button
+          onClick={onContinue}
+          style={{
+            width: "100%",
+            background: colors.primary,
+            color: colors.inkPrimary,
+            fontWeight: 700,
+            fontSize: "16px",
+            borderRadius: "999px",
+            padding: "14px 0",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          다음 스테이지 시작하기
+        </button>
+      </div>
+
       {showTooltip && (
         <div
           onClick={dismissTooltip}
@@ -319,7 +340,7 @@ export function GachaPage({
             cursor: "pointer",
           }}
         >
-          이 아이템은 스테이지 시작 전이나 플레이 중에 써서 시간을 아낄 수 있어요.
+          이 아이템은 게임 중 헤더의 🎒 버튼으로 바로 쓰거나, 여기서 다음 스테이지 시작 전에 미리 써도 돼요.
         </div>
       )}
 
