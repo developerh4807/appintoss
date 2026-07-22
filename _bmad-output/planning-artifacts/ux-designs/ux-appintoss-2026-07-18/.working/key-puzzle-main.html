@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>key-puzzle-main — 퍼즐(홈) 화면</title>
+<style>
+/*
+  Governing spine sections:
+  - DESIGN.md: Colors, Typography, Shapes, Components (tile, progressBar, currencyBadge, bottomNavTab, adBannerSlot)
+  - EXPERIENCE.md: Information Architecture (퍼즐 surface), Component Patterns (Tile, Progress bar, Currency badge, Bottom nav tab, Ad banner slot),
+    State Patterns (스테이지 클리어), Key Flows (Flow 1 step 3-5, Flow 2 step 1-2)
+  Display font (Cafe24 Supermagic) is a webfont — not embeddable offline. This mock falls back to a rounded system stack;
+  swap at implementation per DESIGN.md Typography [ASSUMPTION].
+*/
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #ddd8cc;
+  display: flex;
+  gap: 40px;
+  justify-content: center;
+  padding: 40px;
+  font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  flex-wrap: wrap;
+}
+.caption { text-align: center; font-size: 13px; color: #55504a; margin-top: 10px; }
+.frame {
+  width: 375px;
+  height: 812px;
+  background: #FFF8EC; /* surfaceBase */
+  border-radius: 40px;
+  border: 10px solid #1a1712;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  padding: 20px 20px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  background: #FFF8EC;
+}
+.header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  color: #3A322A; /* inkPrimary */
+}
+.stage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.progress-track {
+  width: 130px;
+  height: 10px;
+  border-radius: 999px;
+  background: #EDE6D6; /* border */
+  overflow: hidden;
+}
+.progress-fill {
+  width: 60%;
+  height: 100%;
+  background: #FFC93C; /* primary */
+  border-radius: 999px;
+}
+.stage-label { font-size: 14px; color: #8C8275; font-weight: 500; }
+.currency-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #FFFFFF;
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: 0 2px 8px rgba(58,50,42,0.08);
+  font-weight: 700;
+  color: #F2A93B; /* currencyGold */
+  font-variant-numeric: tabular-nums;
+}
+.currency-badge .icon { font-size: 16px; }
+
+.board {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  padding: 8px 20px 20px;
+  align-content: start;
+}
+.tile {
+  aspect-ratio: 1;
+  border-radius: 20px; /* rounded/md */
+  background: #FFFFFF; /* surfaceRaised */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  box-shadow: 0 2px 8px rgba(58,50,42,0.06);
+}
+.tile.selected {
+  background: #DCEFEC; /* accentLight */
+  border: 2px solid #0F6E6B; /* accent */
+}
+.tile.wrong {
+  background: #FF6B5C; /* error */
+}
+.tile.matched-ghost {
+  opacity: 0.15;
+}
+
+.ad-slot {
+  margin: 0 20px 8px;
+  background: #FFFFFF;
+  border-radius: 12px;
+  border: 1px solid #EDE6D6;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ad-slot .tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #8C8275;
+  background: #F3EFE4;
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+.ad-slot .placeholder { font-size: 12px; color: #8C8275; }
+
+.tabbar {
+  display: flex;
+  border-top: 1px solid #EDE6D6;
+  background: #FFFFFF;
+}
+.tab {
+  flex: 1;
+  padding: 10px 0 14px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #8C8275; /* inkSecondary */
+}
+.tab .glyph { display: block; font-size: 20px; margin-bottom: 2px; }
+.tab.active { color: #0F6E6B; /* accent */ }
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(58,50,42,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dialog {
+  width: 280px;
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 24px 20px;
+  text-align: center;
+}
+.dialog .headline { font-size: 20px; font-weight: 700; color: #3A322A; margin-bottom: 8px; }
+.dialog .body { font-size: 15px; color: #8C8275; margin-bottom: 20px; line-height: 1.5; }
+.dialog .cta {
+  background: #FFC93C;
+  color: #3A322A;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 999px;
+  padding: 14px 0;
+  margin-bottom: 8px;
+}
+.dialog .secondary {
+  font-size: 14px;
+  color: #0F6E6B;
+  font-weight: 700;
+  padding: 6px 0;
+}
+</style>
+</head>
+<body>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <div>
+        <h1>패턴매칭 퍼즐</h1>
+        <div class="stage-row">
+          <div class="progress-track"><div class="progress-fill"></div></div>
+          <span class="stage-label">스테이지 7</span>
+        </div>
+      </div>
+      <div class="currency-badge"><span class="icon">🪙</span>60</div>
+    </div>
+
+    <div class="board">
+      <div class="tile">🐶</div>
+      <div class="tile">🐻</div>
+      <div class="tile matched-ghost">🦊</div>
+      <div class="tile">🐰</div>
+      <div class="tile selected">🦁</div>
+      <div class="tile">🐨</div>
+      <div class="tile">🐻</div>
+      <div class="tile">🐯</div>
+      <div class="tile">🐰</div>
+      <div class="tile selected">🦁</div>
+      <div class="tile matched-ghost">🦊</div>
+      <div class="tile">🐼</div>
+      <div class="tile">🐨</div>
+      <div class="tile">🐯</div>
+      <div class="tile">🐼</div>
+      <div class="tile">🐶</div>
+    </div>
+
+    <div class="ad-slot">
+      <span class="tag">광고</span>
+      <span class="placeholder">배너 광고 영역 (하단 고정, 상시 노출)</span>
+    </div>
+
+    <div class="tabbar">
+      <div class="tab active"><span class="glyph">🧩</span>퍼즐</div>
+      <div class="tab"><span class="glyph">🎁</span>뽑기</div>
+      <div class="tab"><span class="glyph">📖</span>도감</div>
+    </div>
+  </div>
+  <div class="caption">퍼즐(홈) — 대기 상태. 선택 2칸(accentLight), 매칭 완료(반투명 고스트).</div>
+</div>
+
+<div>
+  <div class="frame">
+    <div class="header">
+      <div>
+        <h1>패턴매칭 퍼즐</h1>
+        <div class="stage-row">
+          <div class="progress-track"><div class="progress-fill" style="width:100%"></div></div>
+          <span class="stage-label">스테이지 7</span>
+        </div>
+      </div>
+      <div class="currency-badge"><span class="icon">🪙</span>60</div>
+    </div>
+    <div class="board">
+      <div class="tile matched-ghost">🐶</div>
+      <div class="tile matched-ghost">🐻</div>
+      <div class="tile matched-ghost">🦊</div>
+      <div class="tile matched-ghost">🐰</div>
+      <div class="tile matched-ghost">🦁</div>
+      <div class="tile matched-ghost">🐨</div>
+      <div class="tile matched-ghost">🐻</div>
+      <div class="tile matched-ghost">🐯</div>
+      <div class="tile matched-ghost">🐰</div>
+      <div class="tile matched-ghost">🦁</div>
+      <div class="tile matched-ghost">🦊</div>
+      <div class="tile matched-ghost">🐼</div>
+      <div class="tile matched-ghost">🐨</div>
+      <div class="tile matched-ghost">🐯</div>
+      <div class="tile matched-ghost">🐼</div>
+      <div class="tile matched-ghost">🐶</div>
+    </div>
+    <div class="ad-slot">
+      <span class="tag">광고</span>
+      <span class="placeholder">배너 광고 영역</span>
+    </div>
+    <div class="tabbar">
+      <div class="tab active"><span class="glyph">🧩</span>퍼즐</div>
+      <div class="tab"><span class="glyph">🎁</span>뽑기</div>
+      <div class="tab"><span class="glyph">📖</span>도감</div>
+    </div>
+    <div class="overlay">
+      <div class="dialog">
+        <div class="headline">스테이지 클리어!</div>
+        <div class="body">재화 10개를 획득했어요.<br/>다음 스테이지로 이동할게요.</div>
+        <div class="cta">계속하기</div>
+        <div class="secondary">뽑으러 가기 →</div>
+      </div>
+    </div>
+  </div>
+  <div class="caption">클리어 다이얼로그 상태 — State Patterns "스테이지 클리어", Flow 1 step 4-6</div>
+</div>
+
+</body>
+</html>
