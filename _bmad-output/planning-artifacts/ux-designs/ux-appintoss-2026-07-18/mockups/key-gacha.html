@@ -2,16 +2,19 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<title>key-gacha — 뽑기·인벤토리 화면 (2026-07-19 개정)</title>
+<title>key-gacha — 뽑기·인벤토리 화면 (2026-07-20 개정)</title>
 <style>
 /*
   Governing spine sections:
   - DESIGN.md: Colors (legendarySparkle는 이제 결과카드 전용 — 이 화면엔 미사용), Components (capsule, itemIcon, segmentControl)
-  - EXPERIENCE.md: Information Architecture (뽑기/인벤토리 세그먼트), Component Patterns (Capsule, Segment control,
-    Inventory item row), Game Feel & Juice, State Patterns (재화 부족, 인벤토리 빈 상태, 첫 아이템 획득),
-    Key Flows (Flow 1 step 6-7, Flow 2 step 4, Flow 3b)
-  [UPDATED 2026-07-19] 리빌 대상이 동물 캐릭터 -> 기능성 아이템 3종. 도감 탭 제거, 인벤토리는 이 화면의 상단
-  세그먼트 컨트롤로 흡수(2탭 구조). 아이템은 가벼운 동물 모티프 일러스트 유지.
+  - EXPERIENCE.md: Information Architecture (뽑기/인벤토리 세그먼트, 스테이지 클리어 분기로만 진입), Component Patterns
+    (Capsule, Segment control, Inventory item row, Continue bar), Game Feel & Juice, State Patterns (재화 부족,
+    인벤토리 빈 상태, 첫 아이템 획득), Key Flows (Flow 1 step 6-7, Flow 2 step 5, Flow 3b)
+  [UPDATED 2026-07-20] 하단 탭(퍼즐/뽑기) 완전 제거 — 이 화면은 더 이상 상시 탭으로 진입하지 않고, 스테이지 클리어
+  다이얼로그의 "뽑으러 가기" 분기로만 진입한다(타이머가 없는 구간에서만 접근 가능하게 하려는 의도, § Decision Log
+  2026-07-20). 대신 하단에 "다음 스테이지 시작하기" 바를 상시 노출 — 이 화면의 유일한 탈출구이자 다음 스테이지
+  진입 트리거. 아이템 사전 사용은 게임 중 헤더의 아이템 트레이(key-puzzle-main.html 참고)로 이동했지만, 여기
+  인벤토리 세그먼트에서도 여전히 확인/사용 가능(스테이지 시작 전 미리 쓰고 싶은 경우).
 */
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -103,19 +106,22 @@ body {
 }
 .cost { font-size: 13px; color: #726858; }
 
-.tabbar {
-  display: flex;
-  border-top: 1px solid #EDE6D6;
+/* [NEW 2026-07-20] 하단 탭을 대체하는 유일한 탈출구 — 다음 스테이지로 진입하는 순간까지 타이머는 시작되지 않는다 */
+.continue-bar {
+  padding: 14px 20px 20px;
   background: #FFFFFF;
+  border-top: 1px solid #EDE6D6;
 }
-.tab { flex: 1; padding: 10px 0 14px; text-align: center; font-size: 12px; font-weight: 700; color: #726858; }
-.tab .glyph {
-  display: inline-block; font-size: 18px; margin-bottom: 2px;
-  width: 30px; height: 22px; line-height: 22px; border-radius: 999px;
+.continue-bar .cta-continue {
+  width: 100%;
+  background: #FFC93C;
+  color: #3A322A;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 999px;
+  padding: 14px 0;
+  text-align: center;
 }
-/* [FIXED 2026-07-19] 액티브 탭이 색상 단독 신호였음(review-accessibility.md medium) — accentLight 배경 칩 추가 */
-.tab.active { color: #0F6E6B; }
-.tab.active .glyph { background: #DCEFEC; }
 
 /* Reveal state */
 .reveal-scrim {
@@ -190,12 +196,9 @@ body {
       <div class="cta">뽑기</div>
       <div class="cost">재화 3개 소모 · 광고 보고 무료로 뽑기</div>
     </div>
-    <div class="tabbar">
-      <div class="tab"><span class="glyph">🧩</span>퍼즐</div>
-      <div class="tab active"><span class="glyph">🎁</span>뽑기</div>
-    </div>
+    <div class="continue-bar"><div class="cta-continue">다음 스테이지 시작하기</div></div>
   </div>
-  <div class="caption">뽑기 세그먼트 — 대기 상태, 재화 충분. 상단 세그먼트 컨트롤로 뽑기/인벤토리 전환(하단 탭 아님).</div>
+  <div class="caption">뽑기 세그먼트 — 대기 상태, 재화 충분. `[UPDATED 2026-07-20]` 하단 탭 제거, 스테이지 클리어 다이얼로그의 "뽑으러 가기"로만 진입. 하단 "다음 스테이지 시작하기"가 이 화면의 유일한 탈출구 — 누르는 순간 다음 스테이지 타이머가 시작된다.</div>
 </div>
 
 <div>
@@ -213,10 +216,7 @@ body {
       <div class="hint">&nbsp;</div>
       <div class="cta" style="opacity:0.3">뽑기</div>
     </div>
-    <div class="tabbar">
-      <div class="tab"><span class="glyph">🧩</span>퍼즐</div>
-      <div class="tab active"><span class="glyph">🎁</span>뽑기</div>
-    </div>
+    <div class="continue-bar"><div class="cta-continue">다음 스테이지 시작하기</div></div>
     <div class="reveal-scrim">
       <div class="reveal-card">
         <div class="reveal-emoji">🐿️⏱️</div>
@@ -244,10 +244,7 @@ body {
       <div class="msg">아직 보유한 아이템이 없어요<br/>뽑기로 얻어볼까요?</div>
       <div class="cta" style="width:200px;">뽑기 하러 가기</div>
     </div>
-    <div class="tabbar">
-      <div class="tab"><span class="glyph">🧩</span>퍼즐</div>
-      <div class="tab active"><span class="glyph">🎁</span>뽑기</div>
-    </div>
+    <div class="continue-bar"><div class="cta-continue">다음 스테이지 시작하기</div></div>
   </div>
   <div class="caption">인벤토리 세그먼트 — 빈 상태(최초). 예전 도감 빈 상태 카피를 대체.</div>
 </div>
@@ -270,7 +267,7 @@ body {
       </div>
       <div class="inv-row">
         <div class="icon-chip">🦔🛡️</div>
-        <div class="info"><div class="name">오답 무효화</div><div class="desc">다음 미스매치 1회 페널티 없음</div></div>
+        <div class="info"><div class="name">미스매치 방패</div><div class="desc">다음 미스매치 1회 페널티 없음</div></div>
         <div class="count">×1</div>
       </div>
       <div class="inv-row">
@@ -279,13 +276,10 @@ body {
         <div class="count">×1</div>
       </div>
     </div>
-    <div class="tooltip">이 아이템은 스테이지 시작 전이나 플레이 중에 써서 시간을 아낄 수 있어요.</div>
-    <div class="tabbar">
-      <div class="tab"><span class="glyph">🧩</span>퍼즐</div>
-      <div class="tab active"><span class="glyph">🎁</span>뽑기</div>
-    </div>
+    <div class="tooltip">이 아이템은 게임 중 헤더의 🎒 버튼으로 바로 쓰거나, 여기서 다음 스테이지 시작 전에 미리 써도 돼요.</div>
+    <div class="continue-bar"><div class="cta-continue">다음 스테이지 시작하기</div></div>
   </div>
-  <div class="caption">인벤토리 세그먼트 — 보유 아이템 3종(가벼운 동물 모티프 일러스트), 첫 획득 시 1회성 컨텍스트 툴팁(FR-9). Flow 1 step 7, Flow 2 step 4.</div>
+  <div class="caption">인벤토리 세그먼트 — 보유 아이템 3종(가벼운 동물 모티프 일러스트), 첫 획득 시 1회성 컨텍스트 툴팁(FR-9, 문구는 게임 중 아이템 트레이 도입에 맞춰 갱신). Flow 1 step 7, Flow 2 step 4-5.</div>
 </div>
 
 </body>

@@ -1,12 +1,14 @@
+import { share } from "@apps-in-toss/web-framework";
 import { Button, useDialog } from "@toss/tds-mobile";
 import { useEffect, useRef, useState } from "react";
 
 import {
   CRITICAL_TIME_RATIO,
   initialSecondsForStage,
-  MAX_FREE_RETRIES,
   MISMATCH_PENALTY_SECONDS,
 } from "../game/balance";
+import { ITEM_ILLUSTRATIONS, ITEM_POOL } from "../game/items";
+import type { ItemType } from "../game/items";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
 import { useInAppAds } from "../hooks/useInAppAds";
@@ -16,39 +18,61 @@ import { colors } from "../theme";
 const CLEAR_REWARD = 10;
 const MISMATCH_DELAY_MS = 500;
 const COLUMNS = 4;
+// 타이머 게이지의 CSS 전환 시간(1s linear, 아래 timer-track 참고)과 맞춘 지연 —
+// 게이지가 시각적으로 완전히 비기 전에 "시간이 다 됐어요" 배너가 먼저 뜨는 걸 방지한다.
+const FAILURE_BANNER_DELAY_MS = 1000;
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
 const CONTINUE_AD_ID = "ait-ad-test-rewarded-id";
+
+interface RetryCap {
+  retriesUsed: number;
+  maxRetries: number;
+  canRetry: boolean;
+  recordRetry: () => void;
+}
 
 interface PuzzlePageProps {
   currency: number;
   stage: number;
-  clearStage: (reward: number) => void;
+  items: Record<ItemType, number>;
+  onUseItem: (type: ItemType) => void;
+  onReward: (reward: number) => void;
+  onAdvanceStage: () => void;
+  onGoToGacha: () => void;
   timer: UseStageTimerReturn;
   shieldActive: boolean;
   onConsumeShield: () => void;
   doubleRewardActive: boolean;
   onConsumeDoubleReward: () => void;
   adCap: { canWatch: boolean; recordWatch: () => void };
+  retryCap: RetryCap;
 }
 
 export function PuzzlePage({
   currency,
   stage,
-  clearStage,
+  items,
+  onUseItem,
+  onReward,
+  onAdvanceStage,
+  onGoToGacha,
   timer,
   shieldActive,
   onConsumeShield,
   doubleRewardActive,
   onConsumeDoubleReward,
   adCap,
+  retryCap,
 }: PuzzlePageProps) {
   const [board, setBoard] = useState<Tile[]>(() => generateBoard(stage));
   const [matchedIds, setMatchedIds] = useState<string[]>([]);
   const [selected, setSelected] = useState<Tile[]>([]);
   const [wrongIds, setWrongIds] = useState<string[]>([]);
   const [showPenalty, setShowPenalty] = useState(false);
-  const [retryCount, setRetryCount] = useState(0);
+  const [showFailureBanner, setShowFailureBanner] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  const [clearedReward, setClearedReward] = useState(0);
+  const [showItemTray, setShowItemTray] = useState(false);
   const dialog = useDialog();
   const continueAd = useInAppAds(CONTINUE_AD_ID);
   const clearedRef = useRef(false);
@@ -58,6 +82,7 @@ export function PuzzlePage({
 
   const cleared = matchedIds.length === board.length;
   const failed = timer.isExpired && !cleared;
+  const totalItems = items.timeBoost + items.mismatchShield + items.doubleReward;
 
   useEffect(() => {
     setBoard(generateBoard(stage));
@@ -65,7 +90,7 @@ export function PuzzlePage({
     setSelected([]);
     setWrongIds([]);
     setShowPenalty(false);
-    setRetryCount(0);
+    setShowFailureBanner(false);
     setAnnouncement("");
     clearedRef.current = false;
     thresholdAnnouncedRef.current = false;
@@ -100,19 +125,36 @@ export function PuzzlePage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
 
+  // [FIXED 2026-07-20] 재화는 클리어 즉시 지급하지만, 스테이지(및 다음 스테이지 타이머)는
+  // 여기서 자동으로 넘기지 않는다 — 예전엔 여기서 바로 stage를 올려 다음 스테이지 타이머가
+  // "스테이지 클리어!" 알림이 떠 있는 동안에도 몰래 돌고 있었다. 지금은 아래 다이얼로그에서
+  // 플레이어가 "다음 스테이지" 또는 "뽑으러 가기"를 실제로 선택해야만 진행된다.
   useEffect(() => {
     if (cleared && !clearedRef.current) {
       clearedRef.current = true;
       const reward = doubleRewardActive ? CLEAR_REWARD * 2 : CLEAR_REWARD;
       if (doubleRewardActive) onConsumeDoubleReward();
-      clearStage(reward);
-      dialog.openAlert({
-        title: "스테이지 클리어!",
-        description: `재화 ${reward}개를 획득했어요. 다음 스테이지로 이동할게요.`,
-      });
+      setClearedReward(reward);
+      onReward(reward);
+      timer.setPaused(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleared]);
+
+  // [FIXED 2026-07-22] "시간이 다 됐어요" 배너는 타이머 게이지의 1초짜리 CSS 전환이 끝난
+  // 뒤에 뜬다 — 예전엔 timeLeft가 0이 되는 즉시 떴는데, 그 순간 게이지는 아직 이전 값에서
+  // 0%로 애니메이션 중이라 "게이지가 덜 빠졌는데 실패 창이 뜬다"는 인상을 줬다.
+  useEffect(() => {
+    if (!failed) {
+      setShowFailureBanner(false);
+      return;
+    }
+    const bannerTimer = setTimeout(
+      () => setShowFailureBanner(true),
+      FAILURE_BANNER_DELAY_MS,
+    );
+    return () => clearTimeout(bannerTimer);
+  }, [failed]);
 
   useEffect(() => {
     if (cleared) return;
@@ -150,7 +192,7 @@ export function PuzzlePage({
   }, [continueAd.lastReward, stage]);
 
   const handleTap = (tile: Tile) => {
-    if (failed) return;
+    if (failed || cleared) return;
     if (wrongIds.length > 0) return;
     if (matchedIds.includes(tile.id)) return;
 
@@ -164,8 +206,8 @@ export function PuzzlePage({
   };
 
   const handleFreeRetry = () => {
-    if (retryCount >= MAX_FREE_RETRIES) return;
-    setRetryCount((count) => count + 1);
+    if (!retryCap.canRetry) return;
+    retryCap.recordRetry();
     setBoard(generateBoard(stage));
     setMatchedIds([]);
     setSelected([]);
@@ -174,6 +216,14 @@ export function PuzzlePage({
     thresholdAnnouncedRef.current = false;
     setAnnouncement("");
     timer.reset(initialSecondsForStage(stage));
+  };
+
+  const handleShare = () => {
+    share({
+      message: `패턴매칭 퍼즐 스테이지 ${stage}까지 도달했어요! 같이 맞춰볼래요?`,
+    }).catch((error) => {
+      console.error("공유 실패:", error);
+    });
   };
 
   const handleContinueAd = () => {
@@ -187,6 +237,11 @@ export function PuzzlePage({
     continueAd.showAd();
   };
 
+  const handleUseTrayItem = (type: ItemType) => {
+    onUseItem(type);
+    setShowItemTray(false);
+  };
+
   const timeRatio = Math.max(
     0,
     Math.min(1, timer.timeLeft / initialSecondsForStage(stage)),
@@ -194,7 +249,15 @@ export function PuzzlePage({
   const isCritical = timeRatio <= CRITICAL_TIME_RATIO;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+        position: "relative",
+      }}
+    >
       <div
         aria-live="assertive"
         style={{
@@ -218,23 +281,54 @@ export function PuzzlePage({
               스테이지 {stage}
             </div>
           </div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: colors.surfaceRaised,
-              borderRadius: "999px",
-              padding: "8px 14px",
-              boxShadow: "0 2px 8px rgba(58,50,42,0.08)",
-              fontWeight: 700,
-              color: colors.currencyGold,
-              fontVariantNumeric: "tabular-nums",
-              whiteSpace: "nowrap",
-            }}
-          >
-            <span style={{ fontSize: "16px" }}>🪙</span>
-            {currency}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              onClick={() => setShowItemTray(true)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                background: colors.surfaceRaised,
+                borderRadius: "999px",
+                padding: "8px 12px",
+                boxShadow: "0 2px 8px rgba(58,50,42,0.08)",
+                fontSize: "16px",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              🎒
+              <span
+                style={{
+                  background: colors.accentLight,
+                  color: colors.accent,
+                  borderRadius: "999px",
+                  padding: "1px 7px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                }}
+              >
+                {totalItems}
+              </span>
+            </button>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: colors.surfaceRaised,
+                borderRadius: "999px",
+                padding: "8px 14px",
+                boxShadow: "0 2px 8px rgba(58,50,42,0.08)",
+                fontWeight: 700,
+                color: colors.currencyGold,
+                fontVariantNumeric: "tabular-nums",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span style={{ fontSize: "16px" }}>🪙</span>
+              {currency}
+            </div>
           </div>
         </div>
 
@@ -291,7 +385,7 @@ export function PuzzlePage({
         </div>
       </div>
 
-      {failed && (
+      {showFailureBanner && (
         <div
           style={{
             margin: "0 20px 16px",
@@ -303,28 +397,44 @@ export function PuzzlePage({
             gap: "8px",
           }}
         >
-          <div style={{ fontWeight: 700, color: colors.inkPrimary }}>시간이 다 됐어요!</div>
-          <div style={{ fontSize: "12px", color: colors.inkSecondary }}>
-            무료 재시도 {retryCount}/{MAX_FREE_RETRIES}회 사용
-          </div>
-          <div style={{ display: "flex", gap: "8px" }}>
-            <Button
-              size="small"
-              variant="weak"
-              disabled={retryCount >= MAX_FREE_RETRIES}
-              onClick={handleFreeRetry}
-            >
-              무료로 재시도
-            </Button>
-            <Button
-              size="small"
-              loading={!continueAd.isAdLoaded}
-              disabled={!continueAd.isSupported || !adCap.canWatch}
-              onClick={handleContinueAd}
-            >
-              광고 보고 이어하기
-            </Button>
-          </div>
+          {!retryCap.canRetry && (!continueAd.isSupported || !adCap.canWatch) ? (
+            <>
+              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>게임 종료</div>
+              <div style={{ fontSize: "13px", color: colors.inkSecondary, lineHeight: 1.5 }}>
+                오늘의 무료 재시도와 광고 시청 기회를 모두 사용했어요.
+                <br />
+                스테이지 {stage}까지 도달했어요 — 친구에게 자랑해볼까요?
+              </div>
+              <Button size="small" onClick={handleShare}>
+                친구에게 공유하기
+              </Button>
+            </>
+          ) : (
+            <>
+              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>시간이 다 됐어요!</div>
+              <div style={{ fontSize: "12px", color: colors.inkSecondary }}>
+                오늘의 무료 재시도 {retryCap.retriesUsed}/{retryCap.maxRetries}회 사용
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <Button
+                  size="small"
+                  variant="weak"
+                  disabled={!retryCap.canRetry}
+                  onClick={handleFreeRetry}
+                >
+                  무료로 재시도
+                </Button>
+                <Button
+                  size="small"
+                  loading={!continueAd.isAdLoaded}
+                  disabled={!continueAd.isSupported || !adCap.canWatch}
+                  onClick={handleContinueAd}
+                >
+                  광고 보고 이어하기
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -390,6 +500,163 @@ export function PuzzlePage({
           );
         })}
       </div>
+
+      {cleared && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(58,50,42,0.6)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 10,
+          }}
+        >
+          <div
+            style={{
+              width: "280px",
+              background: colors.surfaceRaised,
+              borderRadius: "20px",
+              padding: "24px 20px",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "20px", fontWeight: 700, color: colors.inkPrimary, marginBottom: "8px" }}>
+              스테이지 클리어!
+            </div>
+            <div style={{ fontSize: "15px", color: colors.inkSecondary, marginBottom: "20px", lineHeight: 1.5 }}>
+              재화 {clearedReward}개를 획득했어요.
+            </div>
+            <button
+              onClick={onAdvanceStage}
+              style={{
+                width: "100%",
+                background: colors.primary,
+                color: colors.inkPrimary,
+                fontWeight: 700,
+                fontSize: "16px",
+                borderRadius: "999px",
+                padding: "14px 0",
+                border: "none",
+                cursor: "pointer",
+                marginBottom: "8px",
+              }}
+            >
+              다음 스테이지
+            </button>
+            <button
+              onClick={onGoToGacha}
+              style={{
+                width: "100%",
+                background: colors.accent,
+                color: colors.surfaceRaised,
+                fontWeight: 700,
+                fontSize: "16px",
+                borderRadius: "999px",
+                padding: "14px 0",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              뽑으러 가기 🎁
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showItemTray && (
+        <div
+          onClick={() => setShowItemTray(false)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(58,50,42,0.45)",
+            display: "flex",
+            alignItems: "flex-end",
+            zIndex: 10,
+          }}
+        >
+          <div
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "100%",
+              background: colors.surfaceRaised,
+              borderRadius: "24px 24px 0 0",
+              padding: "20px 20px 24px",
+            }}
+          >
+            <div style={{ fontSize: "17px", fontWeight: 700, color: colors.inkPrimary, marginBottom: "4px" }}>
+              아이템 사용
+            </div>
+            <div style={{ fontSize: "12px", color: colors.inkSecondary, marginBottom: "16px" }}>
+              화면 전환 없이 바로 적용돼요. 시간은 계속 흐르고 있어요.
+            </div>
+            {totalItems === 0 ? (
+              <div style={{ fontSize: "13px", color: colors.inkSecondary, padding: "8px 0" }}>
+                보유한 아이템이 없어요.
+              </div>
+            ) : (
+              ITEM_POOL.map((item) => {
+                const count = items[item.type];
+                if (count <= 0) return null;
+                return (
+                  <div
+                    key={item.type}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      padding: "10px 0",
+                      borderTop: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "44px",
+                        height: "44px",
+                        borderRadius: "12px",
+                        background: colors.accentLight,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "22px",
+                        flexShrink: 0,
+                      }}
+                    >
+                      {ITEM_ILLUSTRATIONS[item.type]}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "14px", fontWeight: 700, color: colors.inkPrimary }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize: "11px", color: colors.inkSecondary, marginTop: "2px" }}>
+                        {item.description}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleUseTrayItem(item.type)}
+                      style={{
+                        background: colors.primary,
+                        color: colors.inkPrimary,
+                        fontWeight: 700,
+                        fontSize: "13px",
+                        borderRadius: "999px",
+                        padding: "8px 16px",
+                        border: "none",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      사용
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

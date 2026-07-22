@@ -33,7 +33,8 @@ function loadProgress(): Progress {
 interface UseCurrencyReturn {
   currency: number;
   stage: number;
-  clearStage: (reward: number) => void;
+  addReward: (reward: number) => void;
+  advanceStage: () => void;
   spendCurrency: (amount: number) => boolean;
 }
 
@@ -48,11 +49,14 @@ export function useCurrency(): UseCurrencyReturn {
     }
   }, [progress]);
 
-  const clearStage = useCallback((reward: number) => {
-    setProgress((prev) => ({
-      currency: prev.currency + reward,
-      stage: prev.stage + 1,
-    }));
+  // 재화 지급과 스테이지 진행을 분리 — 재화는 클리어 즉시, 스테이지(및 그에 딸린 타이머)는
+  // 플레이어가 "다음 스테이지"를 실제로 선택한 순간에만 진행되도록 하기 위함.
+  const addReward = useCallback((reward: number) => {
+    setProgress((prev) => ({ ...prev, currency: prev.currency + reward }));
+  }, []);
+
+  const advanceStage = useCallback(() => {
+    setProgress((prev) => ({ ...prev, stage: prev.stage + 1 }));
   }, []);
 
   const spendCurrency = useCallback(
@@ -67,7 +71,8 @@ export function useCurrency(): UseCurrencyReturn {
   return {
     currency: progress.currency,
     stage: progress.stage,
-    clearStage,
+    addReward,
+    advanceStage,
     spendCurrency,
   };
 }

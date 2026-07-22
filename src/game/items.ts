@@ -17,7 +17,7 @@ export const ITEM_POOL: ItemDef[] = [
   },
   {
     type: "mismatchShield",
-    label: "오답 무효화",
+    label: "미스매치 방패",
     description: "다음 미스매치 1회 페널티 없음",
     weight: 40,
   },
@@ -28,6 +28,12 @@ export const ITEM_POOL: ItemDef[] = [
     weight: 20,
   },
 ];
+
+export const ITEM_ILLUSTRATIONS: Record<ItemType, string> = {
+  timeBoost: "🐿️⏱️",
+  mismatchShield: "🦔🛡️",
+  doubleReward: "🦝🪙",
+};
 
 export const PULL_COST = 3;
 

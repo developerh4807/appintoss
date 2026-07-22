@@ -2,7 +2,7 @@ import {
   loadFullScreenAd,
   showFullScreenAd,
 } from "@apps-in-toss/web-framework";
-import { useDialog, useToast } from "@toss/tds-mobile";
+import { useToast } from "@toss/tds-mobile";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface Reward {
@@ -19,7 +19,6 @@ interface UseInAppAdsReturn {
 
 // 참고문서: https://developers-apps-in-toss.toss.im/ads/intro.html
 export function useInAppAds(adGroupId: string): UseInAppAdsReturn {
-  const dialog = useDialog();
   const toast = useToast();
 
   const [isAdLoaded, setIsAdLoaded] = useState(false);
@@ -59,12 +58,12 @@ export function useInAppAds(adGroupId: string): UseInAppAdsReturn {
         load();
       }
     } catch (error) {
-      dialog.openAlert({
-        title: "광고 지원 여부 확인 실패",
-        description:
-          "광고 지원 여부 확인 실패: \n\n- 인앱광고 기능은 브라우저가 아닌 샌드박스앱/토스앱에서 실행해주세요.\n\n" +
-          error,
-      });
+      // 브라우저/로컬 개발 환경 등 네이티브 브릿지가 없는 곳에서는 isSupported() 호출 자체가 throw된다.
+      // 정상적인 미지원 상황이므로 플레이를 막는 alert 대신 조용히 로그만 남긴다.
+      console.error(
+        "광고 지원 여부 확인 실패 (브라우저/샌드박스 환경일 수 있음):",
+        error,
+      );
       setIsSupported(false);
     }
 
