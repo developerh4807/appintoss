@@ -38,6 +38,9 @@ export function GameShell() {
   const banner = useTossBanner();
   const bannerRef = useRef<HTMLDivElement>(null);
 
+  // 배너는 뽑기 화면에서만 mount되므로 퍼즐 화면에서는 bannerRef.current가 null이고
+  // attach 자체가 일어나지 않는다. screen을 deps에 넣어야 뽑기 화면 재진입 시
+  // 새로 mount된 엘리먼트에 다시 attach된다(화면 전환 기반 — 주기적 refresh 아님).
   useEffect(() => {
     if (!banner.isInitialized || !bannerRef.current) return;
 
@@ -50,7 +53,7 @@ export function GameShell() {
     };
     // banner 객체 자체는 매 렌더 새로 생성되므로 deps에 넣지 않는다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [banner.isInitialized, banner.attachBanner]);
+  }, [banner.isInitialized, banner.attachBanner, screen]);
 
   const handlePull = () => {
     if (!spendCurrency(PULL_COST)) {
@@ -144,32 +147,38 @@ export function GameShell() {
         />
       )}
 
-      <div
-        style={{
-          margin: "0 20px 8px",
-          background: colors.surfaceRaised,
-          borderRadius: "12px",
-          border: `1px solid ${colors.border}`,
-          padding: "10px 12px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <span
+      {/* [UPDATED 2026-08-11] 타이머가 도는 퍼즐 화면에서는 배너를 아예 mount하지 않는다.
+          CSS로 숨기는 방식은 토스 정책상 금지(광고를 인지하기 어렵게 만드는 행위)이므로
+          반드시 DOM에서 제거하는 형태여야 한다. 재노출은 화면 전환 시에만 일어나며,
+          타이머·인터벌 기반 재attach(광고 Refresh)는 트래픽 조작으로 금지돼 있다. */}
+      {screen === "gacha" && (
+        <div
           style={{
-            fontSize: "10px",
-            fontWeight: 700,
-            color: colors.inkSecondary,
-            background: "#F3EFE4",
-            borderRadius: "6px",
-            padding: "2px 6px",
+            margin: "0 20px 8px",
+            background: colors.surfaceRaised,
+            borderRadius: "12px",
+            border: `1px solid ${colors.border}`,
+            padding: "10px 12px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          광고
-        </span>
-        <div ref={bannerRef} style={{ flex: 1, height: "96px" }} />
-      </div>
+          <span
+            style={{
+              fontSize: "10px",
+              fontWeight: 700,
+              color: colors.inkSecondary,
+              background: "#F3EFE4",
+              borderRadius: "6px",
+              padding: "2px 6px",
+            }}
+          >
+            광고
+          </span>
+          <div ref={bannerRef} style={{ flex: 1, height: "96px" }} />
+        </div>
+      )}
     </div>
   );
 }
