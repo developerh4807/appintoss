@@ -80,10 +80,12 @@ export function PuzzlePage({
 
   const cleared = matchedIds.length === board.length;
   const failed = timer.isExpired && !cleared;
-  // 이번 런에서 기록을 경신했는지 — bestStage는 클리어할 때마다 갱신되므로
-  // 런 시작 시점 스냅샷과 비교해야 한다(bestStage와 비교하면 항상 참이 된다).
-  const isNewRecord = stage > runState.bestStageAtRunStart;
-  const tier = tierForStage(stage);
+  // 결과 카드는 전부 "클리어한" 스테이지 기준으로 말한다. 런이 끝나는 시점의 `stage`는
+  // 실패한(=클리어 못 한) 스테이지라 그대로 쓰면 "도달 2 / 1,000점"처럼 표시가 어긋나고,
+  // 스테이지 2에서 처음 죽어도 매번 "기록 경신"이 뜬다.
+  const clearedStage = runState.bestStage;
+  const isNewRecord = clearedStage > runState.bestStageAtRunStart;
+  const tier = tierForStage(clearedStage);
 
   useEffect(() => {
     setBoard(generateBoard(stage));
@@ -221,7 +223,7 @@ export function PuzzlePage({
 
   const handleShare = () => {
     share({
-      message: `${tier.icon} 반응속도 ${tier.label}! 스테이지 ${stage}까지 도달했어요. 같이 맞춰볼래요?`,
+      message: `${tier.icon} 반응속도 ${tier.label}! 스테이지 ${clearedStage}까지 클리어했어요. 같이 맞춰볼래요?`,
     }).catch((error) => {
       console.error("공유 실패:", error);
     });
@@ -409,7 +411,7 @@ export function PuzzlePage({
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    스테이지 {stage} 도달 · {scoreForRun(runState.bestStage).toLocaleString()}점
+                    스테이지 {clearedStage} 클리어 · {scoreForRun(clearedStage).toLocaleString()}점
                   </div>
                 </div>
               </div>
@@ -418,7 +420,9 @@ export function PuzzlePage({
                 {isNewRecord ? (
                   <strong>최고 기록을 경신했어요!</strong>
                 ) : (
-                  <>최고 기록은 스테이지 {runState.bestStage}예요.</>
+                  // 경신 못 했으면 기존 기록을 보여준다. clearedStage와 bestStage는 같은 값이라
+                  // 여기서 bestStage를 쓰면 방금 말한 숫자를 되풀이하게 되므로 런 시작 시점 값을 쓴다.
+                  <>최고 기록은 스테이지 {runState.bestStageAtRunStart}예요.</>
                 )}
                 <br />
                 모아둔 재화와 아이템은 그대로 남아 있어요.
