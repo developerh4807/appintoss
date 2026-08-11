@@ -7,6 +7,7 @@ import {
   initialSecondsForStage,
   MISMATCH_PENALTY_SECONDS,
 } from "../game/balance";
+import { openLeaderboard, scoreForRun, tierForStage } from "../game/leaderboard";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
 import { useInAppAds } from "../hooks/useInAppAds";
@@ -82,6 +83,7 @@ export function PuzzlePage({
   // 이번 런에서 기록을 경신했는지 — bestStage는 클리어할 때마다 갱신되므로
   // 런 시작 시점 스냅샷과 비교해야 한다(bestStage와 비교하면 항상 참이 된다).
   const isNewRecord = stage > runState.bestStageAtRunStart;
+  const tier = tierForStage(stage);
 
   useEffect(() => {
     setBoard(generateBoard(stage));
@@ -219,10 +221,16 @@ export function PuzzlePage({
 
   const handleShare = () => {
     share({
-      message: `패턴매칭 퍼즐 스테이지 ${stage}까지 도달했어요! 같이 맞춰볼래요?`,
+      message: `${tier.icon} 반응속도 ${tier.label}! 스테이지 ${stage}까지 도달했어요. 같이 맞춰볼래요?`,
     }).catch((error) => {
       console.error("공유 실패:", error);
     });
+  };
+
+  // 리더보드 웹뷰를 열면 미니앱이 백그라운드로 전환된다. 이 시점엔 이미 타이머가
+  // 만료된 런 종료 상태라 진행 중인 상태가 없어 별도 저장/일시정지가 필요 없다.
+  const handleOpenLeaderboard = () => {
+    void openLeaderboard();
   };
 
   const handleContinueAd = () => {
@@ -368,30 +376,63 @@ export function PuzzlePage({
           {!runState.canRetry && (!continueAd.isSupported || !adCap.canWatch) ? (
             // 컨티뉴 수단을 모두 소진 — 오락실처럼 런이 끝나고 스테이지 1로 돌아간다.
             // 재화·아이템은 유지되므로 다음 런은 더 유리하게 시작할 수 있다.
+            // [NEW 2026-08-11] FR-18 결과 카드 — 런이 끝나는 이 지점이 성과를 보여주고
+            // 공유를 유도하기에 가장 자연스러운 순간이다.
+            // 실제 등수는 표시하지 않는다: 공식 리더보드 API에 순위를 조회하는 수단이
+            // 없어서(openGameCenterLeaderboard는 웹뷰를 띄우기만 함) 등수를 알 방법이
+            // 없다. 대신 로컬 최고기록 비교와 동물 티어로 성취감을 표현하고,
+            // 전체 순위는 "랭킹 보기"로 토스 웹뷰에 위임한다.
             <>
               <div style={{ fontWeight: 700, color: colors.inkPrimary }}>런 종료</div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "12px",
+                  borderRadius: "16px",
+                  background: colors.surfaceBase,
+                }}
+              >
+                <span style={{ fontSize: "34px", lineHeight: 1 }} aria-hidden="true">
+                  {tier.icon}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: colors.inkPrimary }}>
+                    {tier.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: colors.inkSecondary,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    스테이지 {stage} 도달 · {scoreForRun(runState.bestStage).toLocaleString()}점
+                  </div>
+                </div>
+              </div>
+
               <div style={{ fontSize: "13px", color: colors.inkSecondary, lineHeight: 1.5 }}>
-                이번 런은 스테이지 {stage}까지 도달했어요.
                 {isNewRecord ? (
-                  <>
-                    <br />
-                    <strong>최고 기록을 경신했어요!</strong>
-                  </>
+                  <strong>최고 기록을 경신했어요!</strong>
                 ) : (
-                  <>
-                    <br />
-                    최고 기록은 스테이지 {runState.bestStage}예요.
-                  </>
+                  <>최고 기록은 스테이지 {runState.bestStage}예요.</>
                 )}
                 <br />
                 모아둔 재화와 아이템은 그대로 남아 있어요.
               </div>
+
               <div style={{ display: "flex", gap: "8px" }}>
                 <Button size="small" variant="weak" onClick={handleShare}>
                   공유하기
                 </Button>
+                <Button size="small" variant="weak" onClick={handleOpenLeaderboard}>
+                  랭킹 보기
+                </Button>
                 <Button size="small" onClick={onRunReset}>
-                  처음부터 다시 도전
+                  다시 도전
                 </Button>
               </div>
             </>

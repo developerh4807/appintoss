@@ -32,6 +32,30 @@ export function scoreForRun(bestStage: number, secondsLeft = 0): number {
   return stage * STAGE_WEIGHT + bonus;
 }
 
+// [NEW 2026-08-11] FR-18 동물 티어 — 도달 스테이지를 등급으로 은유한다.
+// "반응속도 나이" 프레이밍은 Brain Age/Lumosity가 받은 비과학성 비판과 같은 범주라
+// PRD §4.4에서 명시적으로 기각됐다. 티어는 과학적 측정을 함의하지 않는 재미 요소일 뿐이다.
+// [ASSUMPTION] 구간 경계는 플레이테스트로 조정 — ①의 난이도 커브 확정 후 재검토.
+const TIERS = [
+  { minStage: 20, label: "치타급", icon: "🐆" },
+  { minStage: 14, label: "여우급", icon: "🦊" },
+  { minStage: 9, label: "사슴급", icon: "🦌" },
+  { minStage: 5, label: "하마급", icon: "🦛" },
+  { minStage: 1, label: "나무늘보급", icon: "🦥" },
+] as const;
+
+export interface Tier {
+  label: string;
+  icon: string;
+}
+
+export function tierForStage(stage: number): Tier {
+  // 위에서부터 내려오며 처음 만족하는 구간이 해당 티어다. 마지막 항목이 minStage 1이라
+  // 항상 매치되지만, 손상된 입력(0/음수)에 대비해 fallback을 남긴다.
+  const matched = TIERS.find((tier) => stage >= tier.minStage);
+  return matched ?? TIERS[TIERS.length - 1];
+}
+
 /**
  * 점수를 리더보드에 제출한다. 실패는 전부 조용히 삼킨다 — 미지원 앱 버전, 콘솔 미승인,
  * 게임 프로필 미생성 중 어느 것도 게임 흐름을 막아선 안 된다.
