@@ -4,11 +4,10 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   CRITICAL_TIME_RATIO,
-  initialSecondsForStage,
   MISMATCH_PENALTY_SECONDS,
+  TIME_BOOST_BONUS_SECONDS,
 } from "../game/balance";
-import { ITEM_ILLUSTRATIONS, ITEM_POOL } from "../game/items";
-import type { ItemType } from "../game/items";
+import { openLeaderboard, scoreForRun, tierForStage } from "../game/leaderboard";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
 import { useInAppAds } from "../hooks/useInAppAds";
@@ -24,18 +23,18 @@ const FAILURE_BANNER_DELAY_MS = 1000;
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
 const CONTINUE_AD_ID = "ait-ad-test-rewarded-id";
 
-interface RetryCap {
+interface RunState {
   retriesUsed: number;
   maxRetries: number;
   canRetry: boolean;
+  bestStage: number;
+  bestStageAtRunStart: number;
   recordRetry: () => void;
 }
 
 interface PuzzlePageProps {
   currency: number;
   stage: number;
-  items: Record<ItemType, number>;
-  onUseItem: (type: ItemType) => void;
   onReward: (reward: number) => void;
   onAdvanceStage: () => void;
   onGoToGacha: () => void;
@@ -45,14 +44,17 @@ interface PuzzlePageProps {
   doubleRewardActive: boolean;
   onConsumeDoubleReward: () => void;
   adCap: { canWatch: boolean; recordWatch: () => void };
-  retryCap: RetryCap;
+  runState: RunState;
+  onRunReset: () => void;
+  /** 이번 스테이지의 실제 제한시간(시간 회복 보너스 포함). 게이지·임계 판정의 기준이다. */
+  stageSeconds: number;
+  timeBoostActive: boolean;
+  onConsumeTimeBoost: () => void;
 }
 
 export function PuzzlePage({
   currency,
   stage,
-  items,
-  onUseItem,
   onReward,
   onAdvanceStage,
   onGoToGacha,
@@ -62,7 +64,11 @@ export function PuzzlePage({
   doubleRewardActive,
   onConsumeDoubleReward,
   adCap,
-  retryCap,
+  runState,
+  onRunReset,
+  stageSeconds,
+  timeBoostActive,
+  onConsumeTimeBoost,
 }: PuzzlePageProps) {
   const [board, setBoard] = useState<Tile[]>(() => generateBoard(stage));
   const [matchedIds, setMatchedIds] = useState<string[]>([]);
@@ -72,17 +78,29 @@ export function PuzzlePage({
   const [showFailureBanner, setShowFailureBanner] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [clearedReward, setClearedReward] = useState(0);
-  const [showItemTray, setShowItemTray] = useState(false);
   const dialog = useDialog();
   const continueAd = useInAppAds(CONTINUE_AD_ID);
   const clearedRef = useRef(false);
   const thresholdAnnouncedRef = useRef(false);
   const failureAnnouncedRef = useRef(false);
   const handledRewardRef = useRef<typeof continueAd.lastReward>(null);
+  // 이번 스테이지에 실제로 적용된 제한시간(보너스 포함). 보너스를 소모해도 이 값은
+  // 스테이지가 끝날 때까지 유지돼 게이지 비율의 분모로 안전하게 쓸 수 있다.
+  const activeStageSecondsRef = useRef(stageSeconds);
+  // 그중 시간 회복 아이템이 얹어준 보너스 초. 게이지에 별도 구간으로 그리기 위해
+  // 기본치와 분리해 들고 있는다(0이면 보너스 구간을 아예 렌더하지 않는다).
+  const activeBonusSecondsRef = useRef(
+    timeBoostActive ? TIME_BOOST_BONUS_SECONDS : 0,
+  );
 
   const cleared = matchedIds.length === board.length;
   const failed = timer.isExpired && !cleared;
-  const totalItems = items.timeBoost + items.mismatchShield + items.doubleReward;
+  // 결과 카드는 전부 "클리어한" 스테이지 기준으로 말한다. 런이 끝나는 시점의 `stage`는
+  // 실패한(=클리어 못 한) 스테이지라 그대로 쓰면 "도달 2 / 1,000점"처럼 표시가 어긋나고,
+  // 스테이지 2에서 처음 죽어도 매번 "기록 경신"이 뜬다.
+  const clearedStage = runState.bestStage;
+  const isNewRecord = clearedStage > runState.bestStageAtRunStart;
+  const tier = tierForStage(clearedStage);
 
   useEffect(() => {
     setBoard(generateBoard(stage));
@@ -95,7 +113,17 @@ export function PuzzlePage({
     clearedRef.current = false;
     thresholdAnnouncedRef.current = false;
     failureAnnouncedRef.current = false;
-    timer.reset(initialSecondsForStage(stage));
+    // 이번 스테이지 동안 쓸 제한시간을 여기서 고정한다. 아래에서 보너스를 소모하면
+    // 부모의 stageSeconds가 즉시 줄어드는데, 게이지가 그 값을 나눗셈 분모로 쓰면
+    // (남은 20초 / 기준 15초) 처럼 100%를 넘겨 게이지가 멈춘 것처럼 보인다.
+    activeStageSecondsRef.current = stageSeconds;
+    activeBonusSecondsRef.current = timeBoostActive
+      ? TIME_BOOST_BONUS_SECONDS
+      : 0;
+    timer.reset(stageSeconds);
+    // 보너스는 이미 타이머에 반영됐으니 여기서 소모 처리한다 — 안 그러면 이후 모든
+    // 스테이지에 계속 적용된다.
+    if (timeBoostActive) onConsumeTimeBoost();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
@@ -165,7 +193,7 @@ export function PuzzlePage({
       return;
     }
 
-    const ratio = timer.timeLeft / initialSecondsForStage(stage);
+    const ratio = timer.timeLeft / activeStageSecondsRef.current;
     if (
       ratio > 0 &&
       ratio <= CRITICAL_TIME_RATIO &&
@@ -186,7 +214,7 @@ export function PuzzlePage({
       failureAnnouncedRef.current = false;
       thresholdAnnouncedRef.current = false;
       setAnnouncement("");
-      timer.reset(initialSecondsForStage(stage));
+      timer.reset(activeStageSecondsRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continueAd.lastReward, stage]);
@@ -206,8 +234,8 @@ export function PuzzlePage({
   };
 
   const handleFreeRetry = () => {
-    if (!retryCap.canRetry) return;
-    retryCap.recordRetry();
+    if (!runState.canRetry) return;
+    runState.recordRetry();
     setBoard(generateBoard(stage));
     setMatchedIds([]);
     setSelected([]);
@@ -215,15 +243,21 @@ export function PuzzlePage({
     failureAnnouncedRef.current = false;
     thresholdAnnouncedRef.current = false;
     setAnnouncement("");
-    timer.reset(initialSecondsForStage(stage));
+    timer.reset(activeStageSecondsRef.current);
   };
 
   const handleShare = () => {
     share({
-      message: `패턴매칭 퍼즐 스테이지 ${stage}까지 도달했어요! 같이 맞춰볼래요?`,
+      message: `${tier.icon} 반응속도 ${tier.label}! 스테이지 ${clearedStage}까지 클리어했어요. 같이 맞춰볼래요?`,
     }).catch((error) => {
       console.error("공유 실패:", error);
     });
+  };
+
+  // 리더보드 웹뷰를 열면 미니앱이 백그라운드로 전환된다. 이 시점엔 이미 타이머가
+  // 만료된 런 종료 상태라 진행 중인 상태가 없어 별도 저장/일시정지가 필요 없다.
+  const handleOpenLeaderboard = () => {
+    void openLeaderboard();
   };
 
   const handleContinueAd = () => {
@@ -237,16 +271,29 @@ export function PuzzlePage({
     continueAd.showAd();
   };
 
-  const handleUseTrayItem = (type: ItemType) => {
-    onUseItem(type);
-    setShowItemTray(false);
-  };
-
-  const timeRatio = Math.max(
-    0,
-    Math.min(1, timer.timeLeft / initialSecondsForStage(stage)),
-  );
-  const isCritical = timeRatio <= CRITICAL_TIME_RATIO;
+  // [NEW 2026-08-11] 시안 A — 게이지 분모는 "이 스테이지의 기본 제한시간"으로 두고,
+  // 시간 회복 보너스는 트랙 밖으로 덧붙여 그린다. 분모를 최대 시간(기본+보너스)으로
+  // 통일하면 구현은 단순하지만, 후반 스테이지(5초)에서 게이지가 늘 25%에서 시작해
+  // "이미 줄어든" 인상을 준다 — 압박이 가장 큰 구간이라 부작용이 크다고 판단했다.
+  const baseSeconds = activeStageSecondsRef.current - activeBonusSecondsRef.current;
+  const hasBonus = activeBonusSecondsRef.current > 0;
+  // 보너스 구간이 트랙 오른쪽에 차지하는 비율(기본 구간 폭 = 100% 기준).
+  const bonusWidthRatio = hasBonus ? activeBonusSecondsRef.current / baseSeconds : 0;
+  // 기본 구간 게이지: 남은 시간이 기본치를 넘는 동안(보너스 소진 전)엔 꽉 찬 상태를 유지한다.
+  const baseRatio = Math.max(0, Math.min(1, timer.timeLeft / baseSeconds));
+  // 보너스 구간 게이지: 기본치를 초과하는 잔여분만 채운다 — 보너스부터 먼저 줄어드는 모습.
+  const bonusRatio = hasBonus
+    ? Math.max(
+        0,
+        Math.min(
+          1,
+          (timer.timeLeft - baseSeconds) / activeBonusSecondsRef.current,
+        ),
+      )
+    : 0;
+  // 임계 판정은 전체 시간 대비로 한다 — 보너스를 쓴 스테이지에서 경고가 일찍 뜨면 안 된다.
+  const isCritical =
+    timer.timeLeft / activeStageSecondsRef.current <= CRITICAL_TIME_RATIO;
 
   return (
     <div
@@ -281,36 +328,10 @@ export function PuzzlePage({
               스테이지 {stage}
             </div>
           </div>
+          {/* [UPDATED 2026-08-11] 🎒 즉시사용 버튼 제거 — 아이템은 뽑기 화면(GachaPage
+              인벤토리 탭)에서 다음 스테이지 시작 전에만 쓴다. 타이머가 도는 도중에도
+              즉시 사용이 가능하면 "스테이지 시작 전에 미리 장착"하는 전략 구상이 흐려진다. */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <button
-              onClick={() => setShowItemTray(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                background: colors.surfaceRaised,
-                borderRadius: "999px",
-                padding: "8px 12px",
-                boxShadow: "0 2px 8px rgba(58,50,42,0.08)",
-                fontSize: "16px",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              🎒
-              <span
-                style={{
-                  background: colors.accentLight,
-                  color: colors.accent,
-                  borderRadius: "999px",
-                  padding: "1px 7px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                }}
-              >
-                {totalItems}
-              </span>
-            </button>
             <div
               style={{
                 display: "flex",
@@ -333,25 +354,59 @@ export function PuzzlePage({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "14px" }}>
-          <div
-            style={{
-              flex: 1,
-              height: "20px",
-              borderRadius: "999px",
-              background: colors.border,
-              overflow: "hidden",
-            }}
-          >
+          {/* [NEW 2026-08-11] 시안 A — 기본 구간은 항상 100% 폭을 차지하고, 시간 회복
+              보너스는 그 오른쪽에 별도 구간으로 덧붙는다. 색 없이도 읽히도록 사선 질감과
+              구분선(형태)으로 신호하고, 아래 스트립이 문장으로 한 번 더 못 박는다. */}
+          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "2px" }}>
             <div
               style={{
-                height: "100%",
-                width: `${timeRatio * 100}%`,
-                background: isCritical ? colors.error : colors.accent,
-                borderRadius: "999px",
-                boxShadow: isCritical ? "0 0 16px 4px rgba(255,107,92,0.6)" : "none",
-                transition: "width 1s linear, background-color 0.3s",
+                flex: 1,
+                height: "20px",
+                borderRadius: hasBonus ? "999px 0 0 999px" : "999px",
+                background: colors.border,
+                overflow: "hidden",
               }}
-            />
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${baseRatio * 100}%`,
+                  background: isCritical ? colors.error : colors.accent,
+                  borderRadius: "999px",
+                  boxShadow: isCritical
+                    ? "0 0 16px 4px rgba(255,107,92,0.6)"
+                    : "none",
+                  transition: "width 1s linear, background-color 0.3s",
+                }}
+              />
+            </div>
+            {hasBonus && (
+              <div
+                // 보너스 구간은 기본 구간 폭에 비례해 차지한다(예: 15초 기본 + 5초 보너스 → 1/3).
+                style={{
+                  flexBasis: `${bonusWidthRatio * 100}%`,
+                  flexShrink: 0,
+                  height: "20px",
+                  borderRadius: "0 999px 999px 0",
+                  background: colors.border,
+                  overflow: "hidden",
+                  borderLeft: `2px solid ${colors.surfaceBase}`,
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${bonusRatio * 100}%`,
+                    borderRadius: "0 999px 999px 0",
+                    // 색맹 대응: 사선 질감이 유일한 판별 신호이고 색은 보조다.
+                    backgroundColor: colors.accent,
+                    backgroundImage:
+                      "repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 3px, transparent 3px 7px)",
+                    transition: "width 1s linear",
+                  }}
+                />
+              </div>
+            )}
           </div>
           {isCritical ? (
             <div
@@ -383,6 +438,35 @@ export function PuzzlePage({
             </div>
           )}
         </div>
+
+        {/* 게이지의 형태 신호(사선 질감·구분선)를 문장으로 한 번 더 못 박는다.
+            게이지가 절반쯤 줄면 보너스 구간이 사라져 시각 단서가 없어지므로,
+            스트립은 스테이지 내내 남겨 "이번 판은 시간이 늘어났다"를 유지한다. */}
+        {hasBonus && (
+          <div
+            style={{
+              marginTop: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              alignSelf: "flex-start",
+              background: colors.surfaceRaised,
+              borderRadius: "999px",
+              padding: "4px 10px",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: colors.inkSecondary,
+            }}
+          >
+            <span aria-hidden="true">⏱️</span>
+            <span>
+              시간 회복 적용 — {baseSeconds}초 →{" "}
+              <strong style={{ color: colors.accent }}>
+                {activeStageSecondsRef.current}초
+              </strong>
+            </span>
+          </div>
+        )}
       </div>
 
       {showFailureBanner && (
@@ -397,29 +481,82 @@ export function PuzzlePage({
             gap: "8px",
           }}
         >
-          {!retryCap.canRetry && (!continueAd.isSupported || !adCap.canWatch) ? (
+          {!runState.canRetry && (!continueAd.isSupported || !adCap.canWatch) ? (
+            // 컨티뉴 수단을 모두 소진 — 오락실처럼 런이 끝나고 스테이지 1로 돌아간다.
+            // 재화·아이템은 유지되므로 다음 런은 더 유리하게 시작할 수 있다.
+            // [NEW 2026-08-11] FR-18 결과 카드 — 런이 끝나는 이 지점이 성과를 보여주고
+            // 공유를 유도하기에 가장 자연스러운 순간이다.
+            // 실제 등수는 표시하지 않는다: 공식 리더보드 API에 순위를 조회하는 수단이
+            // 없어서(openGameCenterLeaderboard는 웹뷰를 띄우기만 함) 등수를 알 방법이
+            // 없다. 대신 로컬 최고기록 비교와 동물 티어로 성취감을 표현하고,
+            // 전체 순위는 "랭킹 보기"로 토스 웹뷰에 위임한다.
             <>
-              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>게임 종료</div>
-              <div style={{ fontSize: "13px", color: colors.inkSecondary, lineHeight: 1.5 }}>
-                오늘의 무료 재시도와 광고 시청 기회를 모두 사용했어요.
-                <br />
-                스테이지 {stage}까지 도달했어요 — 친구에게 자랑해볼까요?
+              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>런 종료</div>
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "12px",
+                  borderRadius: "16px",
+                  background: colors.surfaceBase,
+                }}
+              >
+                <span style={{ fontSize: "34px", lineHeight: 1 }} aria-hidden="true">
+                  {tier.icon}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "17px", fontWeight: 700, color: colors.inkPrimary }}>
+                    {tier.label}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "12px",
+                      color: colors.inkSecondary,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    스테이지 {clearedStage} 클리어 · {scoreForRun(clearedStage).toLocaleString()}점
+                  </div>
+                </div>
               </div>
-              <Button size="small" onClick={handleShare}>
-                친구에게 공유하기
-              </Button>
+
+              <div style={{ fontSize: "13px", color: colors.inkSecondary, lineHeight: 1.5 }}>
+                {isNewRecord ? (
+                  <strong>최고 기록을 경신했어요!</strong>
+                ) : (
+                  // 경신 못 했으면 기존 기록을 보여준다. clearedStage와 bestStage는 같은 값이라
+                  // 여기서 bestStage를 쓰면 방금 말한 숫자를 되풀이하게 되므로 런 시작 시점 값을 쓴다.
+                  <>최고 기록은 스테이지 {runState.bestStageAtRunStart}예요.</>
+                )}
+                <br />
+                모아둔 재화와 아이템은 그대로 남아 있어요.
+              </div>
+
+              <div style={{ display: "flex", gap: "8px" }}>
+                <Button size="small" variant="weak" onClick={handleShare}>
+                  공유하기
+                </Button>
+                <Button size="small" variant="weak" onClick={handleOpenLeaderboard}>
+                  랭킹 보기
+                </Button>
+                <Button size="small" onClick={onRunReset}>
+                  다시 도전
+                </Button>
+              </div>
             </>
           ) : (
             <>
               <div style={{ fontWeight: 700, color: colors.inkPrimary }}>시간이 다 됐어요!</div>
               <div style={{ fontSize: "12px", color: colors.inkSecondary }}>
-                오늘의 무료 재시도 {retryCap.retriesUsed}/{retryCap.maxRetries}회 사용
+                이번 런 무료 재시도 {runState.retriesUsed}/{runState.maxRetries}회 사용
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
                 <Button
                   size="small"
                   variant="weak"
-                  disabled={!retryCap.canRetry}
+                  disabled={!runState.canRetry}
                   onClick={handleFreeRetry}
                 >
                   무료로 재시도
@@ -561,99 +698,6 @@ export function PuzzlePage({
             >
               뽑으러 가기 🎁
             </button>
-          </div>
-        </div>
-      )}
-
-      {showItemTray && (
-        <div
-          onClick={() => setShowItemTray(false)}
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(58,50,42,0.45)",
-            display: "flex",
-            alignItems: "flex-end",
-            zIndex: 10,
-          }}
-        >
-          <div
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              width: "100%",
-              background: colors.surfaceRaised,
-              borderRadius: "24px 24px 0 0",
-              padding: "20px 20px 24px",
-            }}
-          >
-            <div style={{ fontSize: "17px", fontWeight: 700, color: colors.inkPrimary, marginBottom: "4px" }}>
-              아이템 사용
-            </div>
-            <div style={{ fontSize: "12px", color: colors.inkSecondary, marginBottom: "16px" }}>
-              화면 전환 없이 바로 적용돼요. 시간은 계속 흐르고 있어요.
-            </div>
-            {totalItems === 0 ? (
-              <div style={{ fontSize: "13px", color: colors.inkSecondary, padding: "8px 0" }}>
-                보유한 아이템이 없어요.
-              </div>
-            ) : (
-              ITEM_POOL.map((item) => {
-                const count = items[item.type];
-                if (count <= 0) return null;
-                return (
-                  <div
-                    key={item.type}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 0",
-                      borderTop: `1px solid ${colors.border}`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "44px",
-                        height: "44px",
-                        borderRadius: "12px",
-                        background: colors.accentLight,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "22px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {ITEM_ILLUSTRATIONS[item.type]}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "14px", fontWeight: 700, color: colors.inkPrimary }}>
-                        {item.label}
-                      </div>
-                      <div style={{ fontSize: "11px", color: colors.inkSecondary, marginTop: "2px" }}>
-                        {item.description}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleUseTrayItem(item.type)}
-                      style={{
-                        background: colors.primary,
-                        color: colors.inkPrimary,
-                        fontWeight: 700,
-                        fontSize: "13px",
-                        borderRadius: "999px",
-                        padding: "8px 16px",
-                        border: "none",
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      사용
-                    </button>
-                  </div>
-                );
-              })
-            )}
           </div>
         </div>
       )}

@@ -12,7 +12,9 @@ export const ITEM_POOL: ItemDef[] = [
   {
     type: "timeBoost",
     label: "시간 회복",
-    description: "제한시간 +5초 즉시 추가",
+    // [UPDATED 2026-08-11] 즉시 적용이 아니라 다음 스테이지에 얹히는 보류 효과다 —
+    // 아이템을 스테이지 시작 전에만 쓰도록 바뀌면서(⑤) 동작이 함께 바뀌었다.
+    description: "다음 스테이지 제한시간 +5초",
     weight: 40,
   },
   {
@@ -35,7 +37,12 @@ export const ITEM_ILLUSTRATIONS: Record<ItemType, string> = {
   doubleReward: "🦝🪙",
 };
 
-export const PULL_COST = 3;
+// [UPDATED 2026-08-11] 3 → 12. 오락실 런 리셋 모델(②)에서 재화가 런마다 리셋되지 않고
+// 계속 누적되도록 확정되면서, 기존 수치(클리어 +10 / 뽑기 3)는 클리어 1회로 뽑기를 3회
+// 넘게 할 수 있어 후반에 재화가 남아돌고 아이템 희소성이 사라진다.
+// 클리어 1회당 뽑기 1회 미만(10/12)이 되도록 올려 "모아서 쓰는" 감각을 만든다.
+// [ASSUMPTION] 정확한 수치는 ①의 난이도 커브(런 평균 길이) 확정 후 플레이테스트로 조정.
+export const PULL_COST = 12;
 
 export function rollItem(): ItemType {
   const totalWeight = ITEM_POOL.reduce((sum, item) => sum + item.weight, 0);
