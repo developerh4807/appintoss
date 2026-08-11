@@ -138,8 +138,6 @@ export function GameShell() {
         <PuzzlePage
           currency={currency}
           stage={stage}
-          items={items}
-          onUseItem={handleUseItem}
           onReward={addReward}
           onAdvanceStage={handleContinueToNextStage}
           onGoToGacha={handleGoToGacha}

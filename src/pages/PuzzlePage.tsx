@@ -7,8 +7,6 @@ import {
   initialSecondsForStage,
   MISMATCH_PENALTY_SECONDS,
 } from "../game/balance";
-import { ITEM_ILLUSTRATIONS, ITEM_POOL } from "../game/items";
-import type { ItemType } from "../game/items";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
 import { useInAppAds } from "../hooks/useInAppAds";
@@ -36,8 +34,6 @@ interface RunState {
 interface PuzzlePageProps {
   currency: number;
   stage: number;
-  items: Record<ItemType, number>;
-  onUseItem: (type: ItemType) => void;
   onReward: (reward: number) => void;
   onAdvanceStage: () => void;
   onGoToGacha: () => void;
@@ -54,8 +50,6 @@ interface PuzzlePageProps {
 export function PuzzlePage({
   currency,
   stage,
-  items,
-  onUseItem,
   onReward,
   onAdvanceStage,
   onGoToGacha,
@@ -76,7 +70,6 @@ export function PuzzlePage({
   const [showFailureBanner, setShowFailureBanner] = useState(false);
   const [announcement, setAnnouncement] = useState("");
   const [clearedReward, setClearedReward] = useState(0);
-  const [showItemTray, setShowItemTray] = useState(false);
   const dialog = useDialog();
   const continueAd = useInAppAds(CONTINUE_AD_ID);
   const clearedRef = useRef(false);
@@ -89,7 +82,6 @@ export function PuzzlePage({
   // 이번 런에서 기록을 경신했는지 — bestStage는 클리어할 때마다 갱신되므로
   // 런 시작 시점 스냅샷과 비교해야 한다(bestStage와 비교하면 항상 참이 된다).
   const isNewRecord = stage > runState.bestStageAtRunStart;
-  const totalItems = items.timeBoost + items.mismatchShield + items.doubleReward;
 
   useEffect(() => {
     setBoard(generateBoard(stage));
@@ -244,11 +236,6 @@ export function PuzzlePage({
     continueAd.showAd();
   };
 
-  const handleUseTrayItem = (type: ItemType) => {
-    onUseItem(type);
-    setShowItemTray(false);
-  };
-
   const timeRatio = Math.max(
     0,
     Math.min(1, timer.timeLeft / initialSecondsForStage(stage)),
@@ -288,36 +275,10 @@ export function PuzzlePage({
               스테이지 {stage}
             </div>
           </div>
+          {/* [UPDATED 2026-08-11] 🎒 즉시사용 버튼 제거 — 아이템은 뽑기 화면(GachaPage
+              인벤토리 탭)에서 다음 스테이지 시작 전에만 쓴다. 타이머가 도는 도중에도
+              즉시 사용이 가능하면 "스테이지 시작 전에 미리 장착"하는 전략 구상이 흐려진다. */}
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <button
-              onClick={() => setShowItemTray(true)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                background: colors.surfaceRaised,
-                borderRadius: "999px",
-                padding: "8px 12px",
-                boxShadow: "0 2px 8px rgba(58,50,42,0.08)",
-                fontSize: "16px",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              🎒
-              <span
-                style={{
-                  background: colors.accentLight,
-                  color: colors.accent,
-                  borderRadius: "999px",
-                  padding: "1px 7px",
-                  fontSize: "11px",
-                  fontWeight: 700,
-                }}
-              >
-                {totalItems}
-              </span>
-            </button>
             <div
               style={{
                 display: "flex",
@@ -586,99 +547,6 @@ export function PuzzlePage({
             >
               뽑으러 가기 🎁
             </button>
-          </div>
-        </div>
-      )}
-
-      {showItemTray && (
-        <div
-          onClick={() => setShowItemTray(false)}
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(58,50,42,0.45)",
-            display: "flex",
-            alignItems: "flex-end",
-            zIndex: 10,
-          }}
-        >
-          <div
-            onClick={(event) => event.stopPropagation()}
-            style={{
-              width: "100%",
-              background: colors.surfaceRaised,
-              borderRadius: "24px 24px 0 0",
-              padding: "20px 20px 24px",
-            }}
-          >
-            <div style={{ fontSize: "17px", fontWeight: 700, color: colors.inkPrimary, marginBottom: "4px" }}>
-              아이템 사용
-            </div>
-            <div style={{ fontSize: "12px", color: colors.inkSecondary, marginBottom: "16px" }}>
-              화면 전환 없이 바로 적용돼요. 시간은 계속 흐르고 있어요.
-            </div>
-            {totalItems === 0 ? (
-              <div style={{ fontSize: "13px", color: colors.inkSecondary, padding: "8px 0" }}>
-                보유한 아이템이 없어요.
-              </div>
-            ) : (
-              ITEM_POOL.map((item) => {
-                const count = items[item.type];
-                if (count <= 0) return null;
-                return (
-                  <div
-                    key={item.type}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 0",
-                      borderTop: `1px solid ${colors.border}`,
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: "44px",
-                        height: "44px",
-                        borderRadius: "12px",
-                        background: colors.accentLight,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "22px",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {ITEM_ILLUSTRATIONS[item.type]}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "14px", fontWeight: 700, color: colors.inkPrimary }}>
-                        {item.label}
-                      </div>
-                      <div style={{ fontSize: "11px", color: colors.inkSecondary, marginTop: "2px" }}>
-                        {item.description}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleUseTrayItem(item.type)}
-                      style={{
-                        background: colors.primary,
-                        color: colors.inkPrimary,
-                        fontWeight: 700,
-                        fontSize: "13px",
-                        borderRadius: "999px",
-                        padding: "8px 16px",
-                        border: "none",
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      사용
-                    </button>
-                  </div>
-                );
-              })
-            )}
           </div>
         </div>
       )}
