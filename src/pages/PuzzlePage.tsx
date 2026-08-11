@@ -24,10 +24,12 @@ const FAILURE_BANNER_DELAY_MS = 1000;
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
 const CONTINUE_AD_ID = "ait-ad-test-rewarded-id";
 
-interface RetryCap {
+interface RunState {
   retriesUsed: number;
   maxRetries: number;
   canRetry: boolean;
+  bestStage: number;
+  bestStageAtRunStart: number;
   recordRetry: () => void;
 }
 
@@ -45,7 +47,8 @@ interface PuzzlePageProps {
   doubleRewardActive: boolean;
   onConsumeDoubleReward: () => void;
   adCap: { canWatch: boolean; recordWatch: () => void };
-  retryCap: RetryCap;
+  runState: RunState;
+  onRunReset: () => void;
 }
 
 export function PuzzlePage({
@@ -62,7 +65,8 @@ export function PuzzlePage({
   doubleRewardActive,
   onConsumeDoubleReward,
   adCap,
-  retryCap,
+  runState,
+  onRunReset,
 }: PuzzlePageProps) {
   const [board, setBoard] = useState<Tile[]>(() => generateBoard(stage));
   const [matchedIds, setMatchedIds] = useState<string[]>([]);
@@ -82,6 +86,9 @@ export function PuzzlePage({
 
   const cleared = matchedIds.length === board.length;
   const failed = timer.isExpired && !cleared;
+  // 이번 런에서 기록을 경신했는지 — bestStage는 클리어할 때마다 갱신되므로
+  // 런 시작 시점 스냅샷과 비교해야 한다(bestStage와 비교하면 항상 참이 된다).
+  const isNewRecord = stage > runState.bestStageAtRunStart;
   const totalItems = items.timeBoost + items.mismatchShield + items.doubleReward;
 
   useEffect(() => {
@@ -206,8 +213,8 @@ export function PuzzlePage({
   };
 
   const handleFreeRetry = () => {
-    if (!retryCap.canRetry) return;
-    retryCap.recordRetry();
+    if (!runState.canRetry) return;
+    runState.recordRetry();
     setBoard(generateBoard(stage));
     setMatchedIds([]);
     setSelected([]);
@@ -397,29 +404,47 @@ export function PuzzlePage({
             gap: "8px",
           }}
         >
-          {!retryCap.canRetry && (!continueAd.isSupported || !adCap.canWatch) ? (
+          {!runState.canRetry && (!continueAd.isSupported || !adCap.canWatch) ? (
+            // 컨티뉴 수단을 모두 소진 — 오락실처럼 런이 끝나고 스테이지 1로 돌아간다.
+            // 재화·아이템은 유지되므로 다음 런은 더 유리하게 시작할 수 있다.
             <>
-              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>게임 종료</div>
+              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>런 종료</div>
               <div style={{ fontSize: "13px", color: colors.inkSecondary, lineHeight: 1.5 }}>
-                오늘의 무료 재시도와 광고 시청 기회를 모두 사용했어요.
+                이번 런은 스테이지 {stage}까지 도달했어요.
+                {isNewRecord ? (
+                  <>
+                    <br />
+                    <strong>최고 기록을 경신했어요!</strong>
+                  </>
+                ) : (
+                  <>
+                    <br />
+                    최고 기록은 스테이지 {runState.bestStage}예요.
+                  </>
+                )}
                 <br />
-                스테이지 {stage}까지 도달했어요 — 친구에게 자랑해볼까요?
+                모아둔 재화와 아이템은 그대로 남아 있어요.
               </div>
-              <Button size="small" onClick={handleShare}>
-                친구에게 공유하기
-              </Button>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <Button size="small" variant="weak" onClick={handleShare}>
+                  공유하기
+                </Button>
+                <Button size="small" onClick={onRunReset}>
+                  처음부터 다시 도전
+                </Button>
+              </div>
             </>
           ) : (
             <>
               <div style={{ fontWeight: 700, color: colors.inkPrimary }}>시간이 다 됐어요!</div>
               <div style={{ fontSize: "12px", color: colors.inkSecondary }}>
-                오늘의 무료 재시도 {retryCap.retriesUsed}/{retryCap.maxRetries}회 사용
+                이번 런 무료 재시도 {runState.retriesUsed}/{runState.maxRetries}회 사용
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
                 <Button
                   size="small"
                   variant="weak"
-                  disabled={!retryCap.canRetry}
+                  disabled={!runState.canRetry}
                   onClick={handleFreeRetry}
                 >
                   무료로 재시도

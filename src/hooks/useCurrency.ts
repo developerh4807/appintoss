@@ -35,6 +35,7 @@ interface UseCurrencyReturn {
   stage: number;
   addReward: (reward: number) => void;
   advanceStage: () => void;
+  resetStage: () => void;
   spendCurrency: (amount: number) => boolean;
 }
 
@@ -59,6 +60,13 @@ export function useCurrency(): UseCurrencyReturn {
     setProgress((prev) => ({ ...prev, stage: prev.stage + 1 }));
   }, []);
 
+  // [NEW 2026-08-11] 오락실 런 리셋 — 재시도를 모두 소진했을 때 스테이지만 1로 되돌린다.
+  // currency는 의도적으로 건드리지 않는다: 런을 거듭할수록 재화가 쌓여 아이템 전략이
+  // 생기는 구조로 확정됐다(아이템도 useInventory에서 그대로 유지된다).
+  const resetStage = useCallback(() => {
+    setProgress((prev) => ({ ...prev, stage: 1 }));
+  }, []);
+
   const spendCurrency = useCallback(
     (amount: number): boolean => {
       if (progress.currency < amount) return false;
@@ -73,6 +81,7 @@ export function useCurrency(): UseCurrencyReturn {
     stage: progress.stage,
     addReward,
     advanceStage,
+    resetStage,
     spendCurrency,
   };
 }
