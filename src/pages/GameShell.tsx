@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@toss/tds-mobile";
 
-import { initialSecondsForStage } from "../game/balance";
+import {
+  initialSecondsForStage,
+  TIME_BOOST_BONUS_SECONDS,
+} from "../game/balance";
 import { itemDef, PULL_COST, rollItem } from "../game/items";
 import type { ItemType } from "../game/items";
 import { scoreForRun, submitScore } from "../game/leaderboard";
@@ -31,12 +34,19 @@ export function GameShell() {
   const { items, addItem, consumeItem } = useInventory();
   const [shieldActive, setShieldActive] = useState(false);
   const [doubleRewardActive, setDoubleRewardActive] = useState(false);
+  const [timeBoostActive, setTimeBoostActive] = useState(false);
   const [revealedItem, setRevealedItem] = useState<ItemType | null>(null);
   const toast = useToast();
   const pullAd = useInAppAds(PULL_AD_ID);
   const adCap = useDailyAdCap();
   const runState = useRunState();
-  const timer = useStageTimer(initialSecondsForStage(stage));
+  // 이번 스테이지의 실제 제한시간 — 시간 회복 아이템을 미리 썼으면 보너스가 얹힌다.
+  // PuzzlePage는 이 값 하나만 보고 타이머 리셋·게이지 비율·임계 판정을 모두 계산한다
+  // (기존엔 각자 initialSecondsForStage를 다시 불러서 보너스가 반영되지 않았다).
+  const stageSeconds =
+    initialSecondsForStage(stage) +
+    (timeBoostActive ? TIME_BOOST_BONUS_SECONDS : 0);
+  const timer = useStageTimer(stageSeconds);
   const banner = useTossBanner();
   const bannerRef = useRef<HTMLDivElement>(null);
 
@@ -78,8 +88,15 @@ export function GameShell() {
   const handleUseItem = (type: ItemType) => {
     if (!consumeItem(type)) return;
     if (type === "timeBoost") {
-      timer.addTime(5);
-      toast.openToast("제한시간 +5초 추가!");
+      // [FIXED 2026-08-11] 예전엔 timer.addTime(5)로 즉시 적용했는데, ⑤에서 아이템을
+      // "스테이지 시작 전"에만 쓰도록 바꾸면서 이 경로가 깨졌다 — 다음 스테이지로 넘어갈 때
+      // PuzzlePage의 timer.reset(initialSecondsForStage(stage))가 타이머를 덮어써서
+      // +5초가 통째로 사라진다. 다른 아이템 2종처럼 보류 플래그로 두고 다음 스테이지
+      // 시작 시간에 반영한다.
+      setTimeBoostActive(true);
+      toast.openToast(
+        `다음 스테이지 제한시간이 ${TIME_BOOST_BONUS_SECONDS}초 늘어나요!`,
+      );
     } else if (type === "mismatchShield") {
       setShieldActive(true);
       toast.openToast("다음 오답은 페널티 없이 넘어가요.");
@@ -121,6 +138,7 @@ export function GameShell() {
     // 새 런 1스테이지로 넘어가면 안 된다.
     setShieldActive(false);
     setDoubleRewardActive(false);
+    setTimeBoostActive(false);
     setScreen("puzzle");
   };
 
@@ -149,6 +167,9 @@ export function GameShell() {
           adCap={adCap}
           runState={runState}
           onRunReset={handleRunReset}
+          stageSeconds={stageSeconds}
+          timeBoostActive={timeBoostActive}
+          onConsumeTimeBoost={() => setTimeBoostActive(false)}
         />
       ) : (
         <GachaPage

@@ -2,11 +2,7 @@ import { share } from "@apps-in-toss/web-framework";
 import { Button, useDialog } from "@toss/tds-mobile";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  CRITICAL_TIME_RATIO,
-  initialSecondsForStage,
-  MISMATCH_PENALTY_SECONDS,
-} from "../game/balance";
+import { CRITICAL_TIME_RATIO, MISMATCH_PENALTY_SECONDS } from "../game/balance";
 import { openLeaderboard, scoreForRun, tierForStage } from "../game/leaderboard";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
@@ -46,6 +42,10 @@ interface PuzzlePageProps {
   adCap: { canWatch: boolean; recordWatch: () => void };
   runState: RunState;
   onRunReset: () => void;
+  /** 이번 스테이지의 실제 제한시간(시간 회복 보너스 포함). 게이지·임계 판정의 기준이다. */
+  stageSeconds: number;
+  timeBoostActive: boolean;
+  onConsumeTimeBoost: () => void;
 }
 
 export function PuzzlePage({
@@ -62,6 +62,9 @@ export function PuzzlePage({
   adCap,
   runState,
   onRunReset,
+  stageSeconds,
+  timeBoostActive,
+  onConsumeTimeBoost,
 }: PuzzlePageProps) {
   const [board, setBoard] = useState<Tile[]>(() => generateBoard(stage));
   const [matchedIds, setMatchedIds] = useState<string[]>([]);
@@ -77,6 +80,9 @@ export function PuzzlePage({
   const thresholdAnnouncedRef = useRef(false);
   const failureAnnouncedRef = useRef(false);
   const handledRewardRef = useRef<typeof continueAd.lastReward>(null);
+  // 이번 스테이지에 실제로 적용된 제한시간(보너스 포함). 보너스를 소모해도 이 값은
+  // 스테이지가 끝날 때까지 유지돼 게이지 비율의 분모로 안전하게 쓸 수 있다.
+  const activeStageSecondsRef = useRef(stageSeconds);
 
   const cleared = matchedIds.length === board.length;
   const failed = timer.isExpired && !cleared;
@@ -98,7 +104,14 @@ export function PuzzlePage({
     clearedRef.current = false;
     thresholdAnnouncedRef.current = false;
     failureAnnouncedRef.current = false;
-    timer.reset(initialSecondsForStage(stage));
+    // 이번 스테이지 동안 쓸 제한시간을 여기서 고정한다. 아래에서 보너스를 소모하면
+    // 부모의 stageSeconds가 즉시 줄어드는데, 게이지가 그 값을 나눗셈 분모로 쓰면
+    // (남은 20초 / 기준 15초) 처럼 100%를 넘겨 게이지가 멈춘 것처럼 보인다.
+    activeStageSecondsRef.current = stageSeconds;
+    timer.reset(stageSeconds);
+    // 보너스는 이미 타이머에 반영됐으니 여기서 소모 처리한다 — 안 그러면 이후 모든
+    // 스테이지에 계속 적용된다.
+    if (timeBoostActive) onConsumeTimeBoost();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
@@ -168,7 +181,7 @@ export function PuzzlePage({
       return;
     }
 
-    const ratio = timer.timeLeft / initialSecondsForStage(stage);
+    const ratio = timer.timeLeft / activeStageSecondsRef.current;
     if (
       ratio > 0 &&
       ratio <= CRITICAL_TIME_RATIO &&
@@ -189,7 +202,7 @@ export function PuzzlePage({
       failureAnnouncedRef.current = false;
       thresholdAnnouncedRef.current = false;
       setAnnouncement("");
-      timer.reset(initialSecondsForStage(stage));
+      timer.reset(activeStageSecondsRef.current);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continueAd.lastReward, stage]);
@@ -218,7 +231,7 @@ export function PuzzlePage({
     failureAnnouncedRef.current = false;
     thresholdAnnouncedRef.current = false;
     setAnnouncement("");
-    timer.reset(initialSecondsForStage(stage));
+    timer.reset(activeStageSecondsRef.current);
   };
 
   const handleShare = () => {
@@ -248,7 +261,7 @@ export function PuzzlePage({
 
   const timeRatio = Math.max(
     0,
-    Math.min(1, timer.timeLeft / initialSecondsForStage(stage)),
+    Math.min(1, timer.timeLeft / activeStageSecondsRef.current),
   );
   const isCritical = timeRatio <= CRITICAL_TIME_RATIO;
 
