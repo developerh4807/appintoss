@@ -2,7 +2,11 @@ import { share } from "@apps-in-toss/web-framework";
 import { Button, useDialog } from "@toss/tds-mobile";
 import { useEffect, useRef, useState } from "react";
 
-import { CRITICAL_TIME_RATIO, MISMATCH_PENALTY_SECONDS } from "../game/balance";
+import {
+  CRITICAL_TIME_RATIO,
+  MISMATCH_PENALTY_SECONDS,
+  TIME_BOOST_BONUS_SECONDS,
+} from "../game/balance";
 import { openLeaderboard, scoreForRun, tierForStage } from "../game/leaderboard";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
@@ -83,6 +87,11 @@ export function PuzzlePage({
   // 이번 스테이지에 실제로 적용된 제한시간(보너스 포함). 보너스를 소모해도 이 값은
   // 스테이지가 끝날 때까지 유지돼 게이지 비율의 분모로 안전하게 쓸 수 있다.
   const activeStageSecondsRef = useRef(stageSeconds);
+  // 그중 시간 회복 아이템이 얹어준 보너스 초. 게이지에 별도 구간으로 그리기 위해
+  // 기본치와 분리해 들고 있는다(0이면 보너스 구간을 아예 렌더하지 않는다).
+  const activeBonusSecondsRef = useRef(
+    timeBoostActive ? TIME_BOOST_BONUS_SECONDS : 0,
+  );
 
   const cleared = matchedIds.length === board.length;
   const failed = timer.isExpired && !cleared;
@@ -108,6 +117,9 @@ export function PuzzlePage({
     // 부모의 stageSeconds가 즉시 줄어드는데, 게이지가 그 값을 나눗셈 분모로 쓰면
     // (남은 20초 / 기준 15초) 처럼 100%를 넘겨 게이지가 멈춘 것처럼 보인다.
     activeStageSecondsRef.current = stageSeconds;
+    activeBonusSecondsRef.current = timeBoostActive
+      ? TIME_BOOST_BONUS_SECONDS
+      : 0;
     timer.reset(stageSeconds);
     // 보너스는 이미 타이머에 반영됐으니 여기서 소모 처리한다 — 안 그러면 이후 모든
     // 스테이지에 계속 적용된다.
@@ -259,11 +271,29 @@ export function PuzzlePage({
     continueAd.showAd();
   };
 
-  const timeRatio = Math.max(
-    0,
-    Math.min(1, timer.timeLeft / activeStageSecondsRef.current),
-  );
-  const isCritical = timeRatio <= CRITICAL_TIME_RATIO;
+  // [NEW 2026-08-11] 시안 A — 게이지 분모는 "이 스테이지의 기본 제한시간"으로 두고,
+  // 시간 회복 보너스는 트랙 밖으로 덧붙여 그린다. 분모를 최대 시간(기본+보너스)으로
+  // 통일하면 구현은 단순하지만, 후반 스테이지(5초)에서 게이지가 늘 25%에서 시작해
+  // "이미 줄어든" 인상을 준다 — 압박이 가장 큰 구간이라 부작용이 크다고 판단했다.
+  const baseSeconds = activeStageSecondsRef.current - activeBonusSecondsRef.current;
+  const hasBonus = activeBonusSecondsRef.current > 0;
+  // 보너스 구간이 트랙 오른쪽에 차지하는 비율(기본 구간 폭 = 100% 기준).
+  const bonusWidthRatio = hasBonus ? activeBonusSecondsRef.current / baseSeconds : 0;
+  // 기본 구간 게이지: 남은 시간이 기본치를 넘는 동안(보너스 소진 전)엔 꽉 찬 상태를 유지한다.
+  const baseRatio = Math.max(0, Math.min(1, timer.timeLeft / baseSeconds));
+  // 보너스 구간 게이지: 기본치를 초과하는 잔여분만 채운다 — 보너스부터 먼저 줄어드는 모습.
+  const bonusRatio = hasBonus
+    ? Math.max(
+        0,
+        Math.min(
+          1,
+          (timer.timeLeft - baseSeconds) / activeBonusSecondsRef.current,
+        ),
+      )
+    : 0;
+  // 임계 판정은 전체 시간 대비로 한다 — 보너스를 쓴 스테이지에서 경고가 일찍 뜨면 안 된다.
+  const isCritical =
+    timer.timeLeft / activeStageSecondsRef.current <= CRITICAL_TIME_RATIO;
 
   return (
     <div
@@ -324,25 +354,59 @@ export function PuzzlePage({
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "14px" }}>
-          <div
-            style={{
-              flex: 1,
-              height: "20px",
-              borderRadius: "999px",
-              background: colors.border,
-              overflow: "hidden",
-            }}
-          >
+          {/* [NEW 2026-08-11] 시안 A — 기본 구간은 항상 100% 폭을 차지하고, 시간 회복
+              보너스는 그 오른쪽에 별도 구간으로 덧붙는다. 색 없이도 읽히도록 사선 질감과
+              구분선(형태)으로 신호하고, 아래 스트립이 문장으로 한 번 더 못 박는다. */}
+          <div style={{ flex: 1, display: "flex", alignItems: "center", gap: "2px" }}>
             <div
               style={{
-                height: "100%",
-                width: `${timeRatio * 100}%`,
-                background: isCritical ? colors.error : colors.accent,
-                borderRadius: "999px",
-                boxShadow: isCritical ? "0 0 16px 4px rgba(255,107,92,0.6)" : "none",
-                transition: "width 1s linear, background-color 0.3s",
+                flex: 1,
+                height: "20px",
+                borderRadius: hasBonus ? "999px 0 0 999px" : "999px",
+                background: colors.border,
+                overflow: "hidden",
               }}
-            />
+            >
+              <div
+                style={{
+                  height: "100%",
+                  width: `${baseRatio * 100}%`,
+                  background: isCritical ? colors.error : colors.accent,
+                  borderRadius: "999px",
+                  boxShadow: isCritical
+                    ? "0 0 16px 4px rgba(255,107,92,0.6)"
+                    : "none",
+                  transition: "width 1s linear, background-color 0.3s",
+                }}
+              />
+            </div>
+            {hasBonus && (
+              <div
+                // 보너스 구간은 기본 구간 폭에 비례해 차지한다(예: 15초 기본 + 5초 보너스 → 1/3).
+                style={{
+                  flexBasis: `${bonusWidthRatio * 100}%`,
+                  flexShrink: 0,
+                  height: "20px",
+                  borderRadius: "0 999px 999px 0",
+                  background: colors.border,
+                  overflow: "hidden",
+                  borderLeft: `2px solid ${colors.surfaceBase}`,
+                }}
+              >
+                <div
+                  style={{
+                    height: "100%",
+                    width: `${bonusRatio * 100}%`,
+                    borderRadius: "0 999px 999px 0",
+                    // 색맹 대응: 사선 질감이 유일한 판별 신호이고 색은 보조다.
+                    backgroundColor: colors.accent,
+                    backgroundImage:
+                      "repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 3px, transparent 3px 7px)",
+                    transition: "width 1s linear",
+                  }}
+                />
+              </div>
+            )}
           </div>
           {isCritical ? (
             <div
@@ -374,6 +438,35 @@ export function PuzzlePage({
             </div>
           )}
         </div>
+
+        {/* 게이지의 형태 신호(사선 질감·구분선)를 문장으로 한 번 더 못 박는다.
+            게이지가 절반쯤 줄면 보너스 구간이 사라져 시각 단서가 없어지므로,
+            스트립은 스테이지 내내 남겨 "이번 판은 시간이 늘어났다"를 유지한다. */}
+        {hasBonus && (
+          <div
+            style={{
+              marginTop: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              alignSelf: "flex-start",
+              background: colors.surfaceRaised,
+              borderRadius: "999px",
+              padding: "4px 10px",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: colors.inkSecondary,
+            }}
+          >
+            <span aria-hidden="true">⏱️</span>
+            <span>
+              시간 회복 적용 — {baseSeconds}초 →{" "}
+              <strong style={{ color: colors.accent }}>
+                {activeStageSecondsRef.current}초
+              </strong>
+            </span>
+          </div>
+        )}
       </div>
 
       {showFailureBanner && (
