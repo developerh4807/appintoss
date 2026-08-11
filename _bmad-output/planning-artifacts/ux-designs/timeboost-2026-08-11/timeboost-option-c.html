@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>시안 C — 스테이지 시작 브리핑 카드 (Pre-Stage Briefing)</title>
+<style>
+/*
+  시안 C — "시작 전에 멈춰서 알려준다"
+  게이지 장식으로 전달하는 대신, 스테이지 시작 직전 전체화면 브리핑 카드에서
+  "15초 → 20초"를 크게 보여주고, 카드가 닫히면서 그 게이지가 그대로 헤더 자리로 내려간다.
+  DESIGN.md 토큰 준수. 모달은 한 겹까지만(DESIGN.md Layout) — 이 카드가 유일한 겹.
+  색 단독 신호 금지: 숫자(텍스트) · 화살표 아이콘 · 게이지 길이(형태) · 굵은 앵커 마커(형태)로 중복 전달.
+*/
+:root{
+  --primary:#FFC93C; --primaryPressed:#E6A800;
+  --accent:#0F6E6B; --accentLight:#DCEFEC;
+  --surfaceBase:#FFF8EC; --surfaceRaised:#FFFFFF;
+  --inkPrimary:#3A322A; --inkSecondary:#726858;
+  --border:#EDE6D6; --success:#4CAF7D; --error:#FF6B5C;
+  --currencyGold:#F2A93B;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#ddd8cc;padding:28px 20px 60px;
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  color:var(--inkPrimary);
+}
+.doc-head{max-width:820px;margin:0 auto 28px;background:var(--surfaceRaised);border-radius:20px;padding:20px 22px;box-shadow:0 2px 10px rgba(58,50,42,.1)}
+.doc-head h1{font-size:20px;font-weight:700;margin-bottom:8px}
+.doc-head .approach{font-size:15px;line-height:1.6;background:var(--accentLight);border-left:5px solid var(--accent);border-radius:0 12px 12px 0;padding:12px 14px}
+.doc-head .meta{font-size:12px;color:var(--inkSecondary);margin-top:10px;line-height:1.6}
+
+.stage-wrap{display:flex;gap:36px;justify-content:center;flex-wrap:wrap;align-items:flex-start}
+.col{width:375px}
+.col h2{font-size:15px;font-weight:700;margin-bottom:4px}
+.col .sub{font-size:12px;color:#55504a;margin-bottom:12px;line-height:1.5}
+.frame{
+  width:375px;height:812px;background:var(--surfaceBase);
+  border-radius:40px;border:10px solid #1a1712;overflow:hidden;position:relative;
+  display:flex;flex-direction:column;
+}
+.caption{margin-top:12px;font-size:12.5px;line-height:1.65;color:#3a352e;background:#f2eee4;border-radius:12px;padding:12px 14px}
+.caption b{color:#1a1712}
+
+/* ---------- 헤더 ---------- */
+.header{padding:20px 20px 14px;background:var(--surfaceBase)}
+.header-top{display:flex;justify-content:space-between;align-items:flex-start}
+.header h1.title{font-size:22px;font-weight:700}
+.stage-label{font-size:13px;color:var(--inkSecondary);font-weight:500;margin-top:2px}
+.currency-badge{
+  display:flex;align-items:center;gap:6px;background:var(--surfaceRaised);border-radius:999px;
+  padding:8px 14px;box-shadow:0 2px 8px rgba(58,50,42,.08);font-weight:700;color:var(--currencyGold);
+  font-variant-numeric:tabular-nums;white-space:nowrap;font-size:15px;
+}
+
+.timer-row{display:flex;align-items:center;gap:12px;margin-top:14px}
+.timer-track{flex:1;height:20px;border-radius:999px;background:var(--border);overflow:visible;position:relative}
+.timer-fill{height:100%;background:var(--accent);border-radius:999px;transition:width 1s linear}
+.timer-seconds{font-size:22px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;min-width:52px;text-align:right}
+
+/* 앵커 마커: "여기까지가 원래 시간" — 게이지 위에 세로 눈금 + 라벨 (형태 신호) */
+.anchor{
+  position:absolute;top:-6px;bottom:-6px;width:3px;background:var(--inkPrimary);
+  border-radius:2px;
+}
+.anchor::after{
+  content:'원래 15초';position:absolute;top:-19px;left:50%;transform:translateX(-50%);
+  font-size:10.5px;font-weight:700;color:var(--inkSecondary);white-space:nowrap;
+}
+.boost-note{
+  margin-top:22px;display:flex;align-items:center;gap:7px;
+  background:var(--accentLight);border-radius:12px;padding:9px 12px;
+  font-size:13px;font-weight:700;line-height:1.35;font-variant-numeric:tabular-nums;
+}
+
+/* ---------- 보드 ---------- */
+.board{
+  flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
+  padding:8px 20px 20px;align-content:start;overflow:hidden;
+}
+.tile{
+  aspect-ratio:1;border-radius:20px;background:var(--surfaceRaised);
+  display:flex;align-items:center;justify-content:center;font-size:30px;
+  box-shadow:0 2px 8px rgba(58,50,42,.06);
+}
+
+/* ---------- 브리핑 오버레이 ---------- */
+.overlay{
+  position:absolute;inset:0;background:rgba(58,50,42,.6);
+  display:flex;align-items:center;justify-content:center;z-index:10;padding:20px;
+}
+.overlay.hide{display:none}
+.brief{
+  width:100%;background:var(--surfaceRaised);border-radius:24px;padding:26px 22px 22px;text-align:center;
+}
+.brief .eyebrow{
+  display:inline-block;font-size:12px;font-weight:700;color:var(--accent);
+  background:var(--accentLight);border-radius:999px;padding:5px 14px;margin-bottom:14px;
+}
+.brief .h{font-size:21px;font-weight:700;margin-bottom:18px}
+
+/* 핵심: 15초 → 20초 큰 대비 */
+.compare{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:6px}
+.compare .box{flex:1;max-width:112px}
+.compare .lab{font-size:11.5px;font-weight:700;color:var(--inkSecondary);margin-bottom:5px}
+.compare .val{
+  font-size:34px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.05;
+  color:var(--inkSecondary);
+}
+.compare .box.after .val{color:var(--inkPrimary);font-size:42px}
+.compare .box.after .lab{color:var(--inkPrimary)}
+.compare .unit{font-size:15px;font-weight:700}
+.compare .arrow{font-size:26px;font-weight:700;color:var(--accent);flex-shrink:0;line-height:1}
+.compare .box.before{opacity:.65}
+.compare .box.before .val{text-decoration:line-through;text-decoration-thickness:3px}
+
+/* 브리핑 안의 게이지 미리보기 — 실제 게임 게이지와 같은 모양 */
+.brief-gauge{margin:16px 0 6px;position:relative}
+.brief-gauge .track{height:20px;border-radius:999px;background:var(--border);overflow:hidden;display:flex}
+.brief-gauge .base{height:100%;background:var(--accent);width:75%;border-radius:999px 0 0 999px}
+.brief-gauge .bonus{
+  height:100%;width:0;border-radius:0 999px 999px 0;
+  background:repeating-linear-gradient(-45deg,var(--accent) 0 5px,#67A9A6 5px 10px);
+  box-shadow:inset 3px 0 0 0 var(--surfaceRaised);
+}
+.brief-gauge.play .bonus{animation:grow 800ms cubic-bezier(.22,1,.36,1) 500ms forwards}
+@keyframes grow{to{width:25%}}
+.brief-gauge .anchor{top:-5px;bottom:-5px}
+
+.brief .item-line{
+  display:flex;align-items:center;gap:10px;background:var(--surfaceBase);border-radius:16px;
+  padding:11px 13px;margin:18px 0 16px;text-align:left;
+}
+.brief .item-line .ico{
+  width:40px;height:40px;border-radius:12px;background:var(--accentLight);display:flex;
+  align-items:center;justify-content:center;font-size:19px;flex-shrink:0;
+}
+.brief .item-line .n{font-size:14px;font-weight:700}
+.brief .item-line .d{font-size:11.5px;color:var(--inkSecondary);margin-top:2px;line-height:1.4}
+.brief .item-line .used{
+  font-size:11px;font-weight:700;color:var(--inkPrimary);background:var(--surfaceRaised);
+  border:2px solid var(--accent);border-radius:999px;padding:3px 9px;white-space:nowrap;
+}
+.brief .cta{
+  width:100%;background:var(--primary);color:var(--inkPrimary);font-weight:700;font-size:16px;
+  border-radius:999px;padding:15px 0;border:none;cursor:pointer;font-family:inherit;
+}
+.brief .hint{font-size:11.5px;color:var(--inkSecondary);margin-top:9px;line-height:1.5}
+
+/* ---------- 인벤토리 ---------- */
+.inv-head{padding:20px 20px 12px;display:flex;justify-content:space-between;align-items:center}
+.inv-head h1.title{font-size:22px;font-weight:700}
+.segmented{margin:0 20px 16px;background:var(--border);border-radius:999px;padding:4px;display:flex}
+.segmented button{
+  flex:1;font-size:13px;font-weight:700;padding:8px 0;border-radius:999px;border:none;
+  cursor:pointer;background:transparent;color:var(--inkSecondary);font-family:inherit;
+}
+.segmented button.on{background:var(--accent);color:var(--surfaceRaised)}
+.inv-list{flex:1;padding:0 20px 20px;display:flex;flex-direction:column;gap:12px;overflow-y:auto}
+.inv-item{
+  background:var(--surfaceRaised);border-radius:20px;padding:14px 16px;display:flex;
+  align-items:center;gap:12px;box-shadow:0 2px 8px rgba(58,50,42,.06);border:2px solid transparent;
+}
+.inv-item .chip{
+  width:48px;height:48px;border-radius:12px;background:var(--accentLight);display:flex;
+  align-items:center;justify-content:center;font-size:22px;flex-shrink:0;
+}
+.inv-item .name{font-size:15px;font-weight:700}
+.inv-item .desc{font-size:12px;color:var(--inkSecondary);margin-top:2px;line-height:1.4}
+.inv-item .count{font-size:13px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums}
+.use-btn{
+  background:var(--primary);color:var(--inkPrimary);font-weight:700;font-size:13px;
+  border-radius:999px;padding:10px 18px;border:none;cursor:pointer;white-space:nowrap;font-family:inherit;
+}
+.inv-item.pending{border:2px solid var(--accent);background:var(--accentLight)}
+.pending-tag{
+  display:inline-flex;align-items:center;gap:5px;margin-top:6px;background:var(--surfaceRaised);
+  border:2px solid var(--accent);border-radius:999px;padding:3px 9px;font-size:11.5px;font-weight:700;
+}
+
+/* 순간 1의 확인 다이얼로그 — 즉시 아님을 못 박는 한 겹 모달 */
+.ack{
+  width:100%;max-width:300px;background:var(--surfaceRaised);border-radius:24px;padding:26px 22px 20px;text-align:center;
+}
+.ack .big{font-size:52px;line-height:1;margin-bottom:10px}
+.ack .h{font-size:19px;font-weight:700;margin-bottom:8px}
+.ack .b{font-size:13.5px;color:var(--inkSecondary);line-height:1.6;margin-bottom:16px}
+.ack .strip{
+  display:flex;align-items:center;justify-content:center;gap:8px;background:var(--accentLight);
+  border-radius:14px;padding:12px;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;margin-bottom:16px;
+}
+.ack .strip .old{color:var(--inkSecondary);text-decoration:line-through;text-decoration-thickness:2px}
+.ack .cta{
+  width:100%;background:var(--accent);color:#fff;font-weight:700;font-size:15px;border-radius:999px;
+  padding:13px 0;border:none;cursor:pointer;font-family:inherit;
+}
+
+.next-cta{padding:14px 20px 20px;background:var(--surfaceRaised);border-top:1px solid var(--border)}
+.next-cta button{
+  width:100%;background:var(--primary);color:var(--inkPrimary);font-weight:700;font-size:16px;
+  border-radius:999px;padding:14px 0;border:none;cursor:pointer;font-family:inherit;
+}
+
+.replay{
+  display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:var(--accent);color:#fff;
+  border:none;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;
+}
+</style>
+</head>
+<body>
+
+<div class="doc-head">
+  <h1>시안 C — 스테이지 시작 브리핑 카드 (Pre-Stage Briefing)</h1>
+  <div class="approach">
+    <b>접근 방식:</b> 게이지를 꾸미는 대신 <b>스테이지가 시작되기 직전에 화면을 한 번 멈춰서</b> "이번 스테이지는 15초 → 20초로 시작합니다"를 큰 숫자로 못 박고, 플레이어가 <b>직접 시작 버튼을 눌러야</b> 타이머가 돈다.
+  </div>
+  <div class="meta">
+    색 외 신호: 큰 숫자 15→20(텍스트) · 취소선(형태) · 화살표(아이콘) · 브리핑 게이지와 게임 게이지의 동일한 형태 연결 · 게이지 위 "원래 15초" 앵커 마커(형태+텍스트).<br>
+    타이머는 브리핑이 닫히는 순간부터 시작 — 기존 코드의 "클리어 다이얼로그 동안 타이머가 몰래 돌지 않는다" 원칙과 동일한 구조.
+  </div>
+</div>
+
+<div class="stage-wrap">
+
+  <!-- ===== 순간 1 ===== -->
+  <div class="col">
+    <h2>순간 1 — 뽑기/인벤토리에서 아이템을 쓴 직후</h2>
+    <div class="sub">"지금은 아무 일도 안 일어난다"를 정면으로 설명</div>
+    <div class="frame">
+      <div class="inv-head">
+        <h1 class="title">뽑기</h1>
+        <div class="currency-badge">🪙 21</div>
+      </div>
+      <div class="segmented">
+        <button>뽑기</button>
+        <button class="on">인벤토리</button>
+      </div>
+      <div class="inv-list">
+        <div class="inv-item pending">
+          <div class="chip">🐿️⏱️</div>
+          <div style="flex:1">
+            <div class="name">시간 회복</div>
+            <div class="desc">다음 스테이지 제한시간 +5초</div>
+            <div class="pending-tag">✓ 스테이지 9에 적용 예약됨</div>
+          </div>
+          <div class="count">×1</div>
+        </div>
+        <div class="inv-item">
+          <div class="chip">🦔🛡️</div>
+          <div style="flex:1">
+            <div class="name">미스매치 방패</div>
+            <div class="desc">다음 미스매치 1회 페널티 없음</div>
+          </div>
+          <button class="use-btn">사용</button>
+        </div>
+      </div>
+      <div class="next-cta">
+        <button>다음 스테이지 시작하기</button>
+      </div>
+
+      <div class="overlay">
+        <div class="ack">
+          <div class="big">🐿️⏱️</div>
+          <div class="h">다음 스테이지에 적용했어요</div>
+          <div class="b">지금 시간이 늘어나는 게 아니에요.<br><b>스테이지 9를 시작하는 순간</b> 늘어난 제한시간으로 출발합니다.</div>
+          <div class="strip"><span class="old">15초</span><span>→</span><span>20초</span></div>
+          <button class="cta">알겠어요</button>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      아이템을 쓰면 <b>한 겹 다이얼로그</b>가 떠서 "지금 늘어나는 게 아니다"를 정면으로 말한다. <b>15초(취소선) → 20초</b>가 큰 글씨로 보이고, 인벤토리 카드도 "스테이지 9에 적용 예약됨"으로 바뀐 채 남는다. 다이얼로그를 닫아도 이 예약 태그가 계속 보여 <b>사라진 것 같은 느낌</b>을 막는다.
+    </div>
+  </div>
+
+  <!-- ===== 순간 2 ===== -->
+  <div class="col">
+    <h2>순간 2 — 다음 스테이지가 시작될 때 <span style="color:#0F6E6B">(핵심)</span></h2>
+    <div class="sub">시작 직전 브리핑 → 카드가 닫히며 그 게이지 그대로 게임 시작</div>
+    <div class="frame" id="frameC">
+      <div class="header">
+        <div class="header-top">
+          <div>
+            <h1 class="title">패턴매칭 퍼즐</h1>
+            <div class="stage-label">스테이지 9</div>
+          </div>
+          <div class="currency-badge">🪙 21</div>
+        </div>
+        <div class="timer-row" style="margin-top:32px">
+          <div class="timer-track">
+            <div class="timer-fill" id="gameFill" style="width:100%"></div>
+            <div class="anchor" style="left:75%"></div>
+          </div>
+          <div class="timer-seconds" id="gameNum">20</div>
+        </div>
+        <div class="boost-note"><span>⏱️</span><span>시간 회복 적용 — 이번 스테이지만 <b>15초 → 20초</b></span></div>
+      </div>
+      <div class="board">
+        <div class="tile">🐶</div><div class="tile">🐻</div><div class="tile">🦊</div><div class="tile">🐰</div>
+        <div class="tile">🦁</div><div class="tile">🐨</div><div class="tile">🐻</div><div class="tile">🐯</div>
+        <div class="tile">🐰</div><div class="tile">🦁</div><div class="tile">🦊</div><div class="tile">🐼</div>
+        <div class="tile">🐨</div><div class="tile">🐯</div><div class="tile">🐼</div><div class="tile">🐶</div>
+      </div>
+
+      <div class="overlay" id="briefOverlay">
+        <div class="brief">
+          <div class="eyebrow">스테이지 9 시작</div>
+          <div class="h">제한시간이 늘어난 채로<br>시작합니다</div>
+
+          <div class="compare">
+            <div class="box before">
+              <div class="lab">원래 제한시간</div>
+              <div class="val">15<span class="unit">초</span></div>
+            </div>
+            <div class="arrow">→</div>
+            <div class="box after">
+              <div class="lab">이번 스테이지</div>
+              <div class="val">20<span class="unit">초</span></div>
+            </div>
+          </div>
+
+          <div class="brief-gauge play" id="briefGauge">
+            <div class="track">
+              <div class="base"></div>
+              <div class="bonus"></div>
+            </div>
+            <div class="anchor" style="left:75%"></div>
+          </div>
+
+          <div class="item-line">
+            <div class="ico">🐿️⏱️</div>
+            <div style="flex:1">
+              <div class="n">시간 회복</div>
+              <div class="d">이번 스테이지에만 적용돼요</div>
+            </div>
+            <div class="used">사용됨</div>
+          </div>
+
+          <button class="cta" onclick="startC()">시작하기</button>
+          <div class="hint">시작을 누르기 전까지 시간은 흐르지 않아요.</div>
+        </div>
+      </div>
+    </div>
+    <button class="replay" onclick="replayC()">▶ 브리핑부터 다시 보기</button>
+    <div class="caption">
+      브리핑 카드 안의 게이지는 <b>실제 헤더 게이지와 똑같은 모양·같은 위치 폭</b>이라, 카드가 사라지면 시선이 그대로 헤더 게이지로 이어진다. 게이지 위의 <b>"원래 15초" 앵커 마커</b>는 게임 중에도 남아서, 시간이 줄어드는 내내 "지금 저 마커보다 오른쪽 = 아이템이 준 시간"이 계속 읽힌다. 타이머는 <b>시작하기를 누른 뒤</b>에 돈다.
+    </div>
+  </div>
+
+  <!-- ===== 대조군 ===== -->
+  <div class="col">
+    <h2>대조군 — 아이템 없이 시작한 같은 스테이지</h2>
+    <div class="sub">브리핑 없음 · 앵커 마커 없음 · 게이지 75%</div>
+    <div class="frame">
+      <div class="header">
+        <div class="header-top">
+          <div>
+            <h1 class="title">패턴매칭 퍼즐</h1>
+            <div class="stage-label">스테이지 9</div>
+          </div>
+          <div class="currency-badge">🪙 21</div>
+        </div>
+        <div class="timer-row" style="margin-top:32px">
+          <div class="timer-track"><div class="timer-fill" style="width:75%"></div></div>
+          <div class="timer-seconds">15</div>
+        </div>
+        <div style="height:53px"></div>
+      </div>
+      <div class="board">
+        <div class="tile">🐶</div><div class="tile">🐻</div><div class="tile">🦊</div><div class="tile">🐰</div>
+        <div class="tile">🦁</div><div class="tile">🐨</div><div class="tile">🐻</div><div class="tile">🐯</div>
+        <div class="tile">🐰</div><div class="tile">🦁</div><div class="tile">🦊</div><div class="tile">🐼</div>
+        <div class="tile">🐨</div><div class="tile">🐯</div><div class="tile">🐼</div><div class="tile">🐶</div>
+      </div>
+    </div>
+    <div class="caption">
+      아이템이 없으면 브리핑 카드 자체가 뜨지 않고 곧바로 스테이지가 시작된다 — <b>브리핑이 뜨는 것 자체가 "아이템이 걸렸다"는 신호</b>가 된다. 게이지는 75%에서 끝나고 앵커 마커·적용 노트도 없다.
+    </div>
+  </div>
+
+</div>
+
+<script>
+function startC(){
+  document.getElementById('briefOverlay').classList.add('hide');
+  var num = document.getElementById('gameNum');
+  var fill = document.getElementById('gameFill');
+  var v = 20;
+  clearInterval(window._c);
+  num.textContent = v;
+  fill.style.width = '100%';
+  window._c = setInterval(function(){
+    v--;
+    if(v < 0){ clearInterval(window._c); return; }
+    num.textContent = v;
+    fill.style.width = (v/20*100) + '%';
+    if(v === 0) clearInterval(window._c);
+  }, 1000);
+}
+
+function replayC(){
+  clearInterval(window._c);
+  var g = document.getElementById('briefGauge');
+  document.getElementById('briefOverlay').classList.remove('hide');
+  document.getElementById('gameNum').textContent = '20';
+  document.getElementById('gameFill').style.width = '100%';
+  g.classList.remove('play'); void g.offsetWidth; g.classList.add('play');
+}
+</script>
+
+</body>
+</html>
