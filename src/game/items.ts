@@ -12,7 +12,9 @@ export const ITEM_POOL: ItemDef[] = [
   {
     type: "timeBoost",
     label: "시간 회복",
-    description: "제한시간 +5초 즉시 추가",
+    // [UPDATED 2026-08-11] 즉시 적용이 아니라 다음 스테이지에 얹히는 보류 효과다 —
+    // 아이템을 스테이지 시작 전에만 쓰도록 바뀌면서(⑤) 동작이 함께 바뀌었다.
+    description: "다음 스테이지 제한시간 +5초",
     weight: 40,
   },
   {
