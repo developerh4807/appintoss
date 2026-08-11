@@ -11,7 +11,7 @@ interface UseTossBannerReturn {
   ) => ReturnType<typeof TossAds.attachBanner> | undefined;
 }
 
-// 참고문서: https://developers-apps-in-toss.toss.im/bedrock/reference/framework/광고/BannerAd.html
+// 참고문서: https://developers-apps-in-toss.toss.im/documentation/common/monetization/iaa/web-banner.md
 export function useTossBanner(): UseTossBannerReturn {
   const [isInitialized, setIsInitialized] = useState(false);
 
