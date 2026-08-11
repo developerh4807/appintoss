@@ -1,4 +1,4 @@
-# appintoss
+# matchingking
 
 Apps in Toss 프로젝트입니다.
 
