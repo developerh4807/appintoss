@@ -4,10 +4,11 @@ import { useToast } from "@toss/tds-mobile";
 import { initialSecondsForStage } from "../game/balance";
 import { itemDef, PULL_COST, rollItem } from "../game/items";
 import type { ItemType } from "../game/items";
+import { scoreForRun, submitScore } from "../game/leaderboard";
 import { useCurrency } from "../hooks/useCurrency";
 import { useDailyAdCap } from "../hooks/useDailyAdCap";
-import { useGlobalRetryCap } from "../hooks/useGlobalRetryCap";
 import { useInAppAds } from "../hooks/useInAppAds";
+import { useRunState } from "../hooks/useRunState";
 import { useInventory } from "../hooks/useInventory";
 import { useStageTimer } from "../hooks/useStageTimer";
 import { useTossBanner } from "../hooks/useTossBanner";
@@ -25,7 +26,8 @@ export function GameShell() {
   // [UPDATED 2026-07-20] 하단 탭 제거 — 뽑기는 스테이지 클리어 다이얼로그의 분기로만 진입한다.
   // 타이머가 도는 스테이지 중엔 화면 전환 자체가 불가능해 "보이지 않는 동안 시간이 새는" 문제가 없다.
   const [screen, setScreen] = useState<Screen>("puzzle");
-  const { currency, stage, addReward, advanceStage, spendCurrency } = useCurrency();
+  const { currency, stage, addReward, advanceStage, resetStage, spendCurrency } =
+    useCurrency();
   const { items, addItem, consumeItem } = useInventory();
   const [shieldActive, setShieldActive] = useState(false);
   const [doubleRewardActive, setDoubleRewardActive] = useState(false);
@@ -33,7 +35,7 @@ export function GameShell() {
   const toast = useToast();
   const pullAd = useInAppAds(PULL_AD_ID);
   const adCap = useDailyAdCap();
-  const retryCap = useGlobalRetryCap();
+  const runState = useRunState();
   const timer = useStageTimer(initialSecondsForStage(stage));
   const banner = useTossBanner();
   const bannerRef = useRef<HTMLDivElement>(null);
@@ -95,7 +97,30 @@ export function GameShell() {
   // 공통 진입점 — 여기서만 스테이지를 올린다. PuzzlePage가 이 시점에 (재)마운트되며 그때
   // 비로소 다음 스테이지 타이머가 시작된다.
   const handleContinueToNextStage = () => {
+    // 최고 기록은 "클리어한" 스테이지 기준이다 — 여기서 stage+1(이제 막 진입하는 스테이지)을
+    // 기록하면 한 번도 깬 적 없는 스테이지가 최고기록이 돼버린다.
+    runState.recordStage(stage);
     advanceStage();
+    setScreen("puzzle");
+  };
+
+  // [NEW 2026-08-11] 오락실 컨티뉴 — 무료 재시도 2회와 광고 1회를 모두 소진했을 때
+  // 스테이지 1로 되돌리고 재시도 카운트를 리충한다. 재화·아이템은 유지된다.
+  const handleRunReset = () => {
+    // 리더보드 제출은 런이 끝나는 이 시점에만 한다 — 게임 프로필이 없으면
+    // PROFILE_NOT_FOUND가 나므로 "플레이 완료 후 호출" 권고를 따른다.
+    // 실패는 어댑터가 전부 삼키므로 await하지 않고 흘려보낸다(콘솔 미승인 상태에서도
+    // 런 리셋이 지연 없이 진행돼야 한다).
+    // 제출 기준은 bestStage(실제로 클리어한 최고 스테이지)다 — 이 시점의 stage는
+    // "실패한 스테이지"라서 그대로 쓰면 점수가 한 단계 부풀려진다.
+    void submitScore(scoreForRun(runState.bestStage));
+
+    resetStage();
+    runState.resetRun();
+    // 아이템 효과는 런에 딸린 일시 상태라 함께 정리한다 — 실패한 런에서 켜둔 방패가
+    // 새 런 1스테이지로 넘어가면 안 된다.
+    setShieldActive(false);
+    setDoubleRewardActive(false);
     setScreen("puzzle");
   };
 
@@ -124,7 +149,8 @@ export function GameShell() {
           doubleRewardActive={doubleRewardActive}
           onConsumeDoubleReward={() => setDoubleRewardActive(false)}
           adCap={adCap}
-          retryCap={retryCap}
+          runState={runState}
+          onRunReset={handleRunReset}
         />
       ) : (
         <GachaPage
