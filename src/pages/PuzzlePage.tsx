@@ -3,13 +3,19 @@ import { Button, useDialog } from "@toss/tds-mobile";
 import { useEffect, useRef, useState } from "react";
 
 import {
+  DISGUISE_LABELS,
+  disguiseCountForStage,
+  disguiseRequiredForStage,
   CRITICAL_TIME_RATIO,
+  hideEnabledForStage,
+  iconPoolForStage,
   MISMATCH_PENALTY_SECONDS,
   TIME_BOOST_BONUS_SECONDS,
 } from "../game/balance";
 import { openLeaderboard, scoreForRun, tierForStage } from "../game/leaderboard";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
+import { useHideSchedule } from "../hooks/useHideSchedule";
 import { useInAppAds } from "../hooks/useInAppAds";
 import type { UseStageTimerReturn } from "../hooks/useStageTimer";
 import { colors } from "../theme";
@@ -22,6 +28,15 @@ const COLUMNS = 4;
 const FAILURE_BANNER_DELAY_MS = 1000;
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
 const CONTINUE_AD_ID = "ait-ad-test-rewarded-id";
+
+// 보드 생성에 필요한 난이도 파생값을 한 곳에서 묶는다 — 보드를 만드는 지점이 셋
+// (최초 마운트·스테이지 전환·무료 재시도)이라 각자 계산하면 어긋나기 쉽다.
+function boardOptionsForStage(stage: number) {
+  return {
+    iconPool: iconPoolForStage(stage),
+    disguiseCount: disguiseCountForStage(stage),
+  };
+}
 
 interface RunState {
   retriesUsed: number;
@@ -70,7 +85,9 @@ export function PuzzlePage({
   timeBoostActive,
   onConsumeTimeBoost,
 }: PuzzlePageProps) {
-  const [board, setBoard] = useState<Tile[]>(() => generateBoard(stage));
+  const [board, setBoard] = useState<Tile[]>(() =>
+    generateBoard(stage, boardOptionsForStage(stage)),
+  );
   const [matchedIds, setMatchedIds] = useState<string[]>([]);
   const [selected, setSelected] = useState<Tile[]>([]);
   const [wrongIds, setWrongIds] = useState<string[]>([]);
@@ -95,6 +112,20 @@ export function PuzzlePage({
 
   const cleared = matchedIds.length === board.length;
   const failed = timer.isExpired && !cleared;
+
+  // 순차 숨김 — 아직 매치되지 않은 타일만 대상이다. 클리어·실패 후에는 더 숨기지 않도록
+  // 타이머의 정지 상태에 더해 두 상태를 함께 넘긴다.
+  const activeIds = board
+    .filter((tile) => !matchedIds.includes(tile.id))
+    .map((tile) => tile.id);
+  const hiddenIds = useHideSchedule({
+    enabled: hideEnabledForStage(stage),
+    stage,
+    stageSeconds: activeStageSecondsRef.current,
+    timeLeft: timer.timeLeft,
+    activeIds,
+    isPaused: timer.isPaused || cleared || failed,
+  });
   // 결과 카드는 전부 "클리어한" 스테이지 기준으로 말한다. 런이 끝나는 시점의 `stage`는
   // 실패한(=클리어 못 한) 스테이지라 그대로 쓰면 "도달 2 / 1,000점"처럼 표시가 어긋나고,
   // 스테이지 2에서 처음 죽어도 매번 "기록 경신"이 뜬다.
@@ -103,7 +134,7 @@ export function PuzzlePage({
   const tier = tierForStage(clearedStage);
 
   useEffect(() => {
-    setBoard(generateBoard(stage));
+    setBoard(generateBoard(stage, boardOptionsForStage(stage)));
     setMatchedIds([]);
     setSelected([]);
     setWrongIds([]);
@@ -131,7 +162,7 @@ export function PuzzlePage({
     if (selected.length < 2) return;
 
     const [first, second] = selected;
-    if (isMatch(first, second)) {
+    if (isMatch(first, second, { disguiseRequired: disguiseRequiredForStage(stage) })) {
       setMatchedIds((prev) => [...prev, first.id, second.id]);
       setSelected([]);
       return;
@@ -236,7 +267,7 @@ export function PuzzlePage({
   const handleFreeRetry = () => {
     if (!runState.canRetry) return;
     runState.recordRetry();
-    setBoard(generateBoard(stage));
+    setBoard(generateBoard(stage, boardOptionsForStage(stage)));
     setMatchedIds([]);
     setSelected([]);
     setWrongIds([]);
@@ -248,7 +279,7 @@ export function PuzzlePage({
 
   const handleShare = () => {
     share({
-      message: `${tier.icon} 반응속도 ${tier.label}! 스테이지 ${clearedStage}까지 클리어했어요. 같이 맞춰볼래요?`,
+      message: `${tier.icon} [틀리면 끝, 동물찾기] 반응속도 ${tier.label}! 스테이지 ${clearedStage}까지 클리어했어요. 같이 해볼래요?`,
     }).catch((error) => {
       console.error("공유 실패:", error);
     });
@@ -322,7 +353,7 @@ export function PuzzlePage({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <h1 style={{ fontSize: "22px", fontWeight: 700, color: colors.inkPrimary }}>
-              패턴매칭 퍼즐
+              틀리면 끝, 동물찾기
             </h1>
             <div style={{ fontSize: "13px", color: colors.inkSecondary, fontWeight: 500, marginTop: "2px" }}>
               스테이지 {stage}
@@ -612,12 +643,26 @@ export function PuzzlePage({
           const isSelected = selected.some((t) => t.id === tile.id);
           const isWrong = wrongIds.includes(tile.id);
           const isMatched = matchedIds.includes(tile.id);
+          // 숨겨진 타일은 선택은 되되 내용을 공개하지 않는다 — 두 장을 모두 고른 뒤
+          // 매치 판정 결과로만 드러난다(신경쇠약 방식). 오답 하이라이트 중에는
+          // 무엇을 골랐는지 보여줘야 학습이 되므로 그때만 공개한다.
+          const isHidden = hiddenIds.includes(tile.id) && !isMatched && !isWrong;
+
+          const label = isHidden
+            ? "숨겨진 타일"
+            : tile.disguise
+              ? `동물, ${DISGUISE_LABELS[tile.disguise]} 착용`
+              : "동물";
 
           return (
             <button
               key={tile.id}
               onClick={() => handleTap(tile)}
+              aria-label={label}
+              aria-pressed={isSelected}
+              disabled={isMatched}
               style={{
+                position: "relative",
                 aspectRatio: "1",
                 fontSize: "30px",
                 borderRadius: "20px",
@@ -632,7 +677,48 @@ export function PuzzlePage({
                 cursor: isMatched ? "default" : "pointer",
               }}
             >
-              {tile.icon}
+              {/* 숨김은 색이 아니라 형태(물음표)로 신호한다 — 색상 단독 신호 금지 계약. */}
+              {isHidden ? (
+                <span
+                  aria-hidden="true"
+                  style={{ color: colors.inkSecondary, fontWeight: 700 }}
+                >
+                  ?
+                </span>
+              ) : (
+                <>
+                  {/* 변장이 있으면 동물을 살짝 내려 겹침을 피한다. */}
+                  <span
+                    aria-hidden="true"
+                    style={
+                      tile.disguise ? { display: "block", marginTop: "8px" } : undefined
+                    }
+                  >
+                    {tile.icon}
+                  </span>
+                  {/* 변장은 DOM에 실제 문자로 둔다 — CSS 배경으로 그리면 스크린리더가 읽지 못한다.
+                      동물 머리 위쪽에 걸치도록 배치해 "쓰고 있다"로 읽히게 한다(귀퉁이 스티커처럼
+                      보이면 변장이 아니라 별개 표식으로 인식된다). */}
+                  {tile.disguise && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        // 머리 "위"에 걸치게 둔다. 얼굴 위로 겹치면 어떤 동물인지 가려져
+                        // 매치 판별의 1차 기준(동물)이 오히려 흐려진다.
+                        top: "2%",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        fontSize: "16px",
+                        lineHeight: 1,
+                        filter: "drop-shadow(0 1px 1px rgba(58,50,42,0.25))",
+                      }}
+                    >
+                      {tile.disguise}
+                    </span>
+                  )}
+                </>
+              )}
             </button>
           );
         })}
