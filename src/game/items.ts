@@ -8,6 +8,10 @@ interface ItemDef {
   weight: number;
 }
 
+// [UPDATED 2026-08-13] 40/40/20 → 44/44/12. 실기기 플레이테스트 피드백: 재화 2배가
+// 뽑기 밸런스를 흔든다는 지적 — 재화가 런마다 누적되는 구조(items.ts:40 주석 참고)에서
+// 2배 획득이 자주 뜨면 "모아서 쓰는" 긴장감이 빨리 무너진다. weight를 20→12로 낮추고,
+// 남는 비중은 스택형으로 바뀐 두 아이템(시간 회복·미스매치 방패)에 동일하게 나눴다.
 export const ITEM_POOL: ItemDef[] = [
   {
     type: "timeBoost",
@@ -15,19 +19,19 @@ export const ITEM_POOL: ItemDef[] = [
     // [UPDATED 2026-08-11] 즉시 적용이 아니라 다음 스테이지에 얹히는 보류 효과다 —
     // 아이템을 스테이지 시작 전에만 쓰도록 바뀌면서(⑤) 동작이 함께 바뀌었다.
     description: "다음 스테이지 제한시간 +5초",
-    weight: 40,
+    weight: 44,
   },
   {
     type: "mismatchShield",
     label: "미스매치 방패",
     description: "다음 미스매치 1회 페널티 없음",
-    weight: 40,
+    weight: 44,
   },
   {
     type: "doubleReward",
     label: "재화 2배",
     description: "다음 스테이지 클리어 시 재화 획득량 2배",
-    weight: 20,
+    weight: 12,
   },
 ];
 

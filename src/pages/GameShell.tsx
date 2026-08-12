@@ -32,9 +32,16 @@ export function GameShell() {
   const { currency, stage, addReward, advanceStage, resetStage, spendCurrency } =
     useCurrency();
   const { items, addItem, consumeItem } = useInventory();
-  const [shieldActive, setShieldActive] = useState(false);
+  // [UPDATED 2026-08-13] shieldActive/timeBoostActive를 boolean → 개수(charges)로 바꿨다.
+  // 예전엔 스테이지 시작 전 같은 아이템을 여러 번 "사용"해도 boolean이라 마지막 한 번만
+  // 의미가 있었다 — 인벤토리에서는 3개가 줄어드는데 효과는 1회만 적용되는 버그였다
+  // (실기기 플레이테스트 2026-08-13 피드백). 미스매치 방패는 스택마다 오답 1회씩 상쇄,
+  // 시간 회복은 스택마다 +5초씩 누적해 다음 스테이지 시작 시 한 번에 적용한다.
+  // 재화 2배는 배율이라 스택하면 밸런스가 깨지므로 boolean을 유지하고, 대신 이미
+  // 걸려 있을 때 추가 소모를 handleUseItem에서 막는다(아래).
+  const [shieldCharges, setShieldCharges] = useState(0);
   const [doubleRewardActive, setDoubleRewardActive] = useState(false);
-  const [timeBoostActive, setTimeBoostActive] = useState(false);
+  const [timeBoostCharges, setTimeBoostCharges] = useState(0);
   const [revealedItem, setRevealedItem] = useState<ItemType | null>(null);
   const toast = useToast();
   const pullAd = useInAppAds(PULL_AD_ID);
@@ -44,8 +51,7 @@ export function GameShell() {
   // PuzzlePage는 이 값 하나만 보고 타이머 리셋·게이지 비율·임계 판정을 모두 계산한다
   // (기존엔 각자 initialSecondsForStage를 다시 불러서 보너스가 반영되지 않았다).
   const stageSeconds =
-    initialSecondsForStage(stage) +
-    (timeBoostActive ? TIME_BOOST_BONUS_SECONDS : 0);
+    initialSecondsForStage(stage) + timeBoostCharges * TIME_BOOST_BONUS_SECONDS;
   const timer = useStageTimer(stageSeconds);
   const banner = useTossBanner();
   const bannerRef = useRef<HTMLDivElement>(null);
@@ -86,6 +92,13 @@ export function GameShell() {
   };
 
   const handleUseItem = (type: ItemType) => {
+    // [NEW 2026-08-13] 재화 2배는 배율이라 스택을 허용하지 않는다 — 인벤토리 소모를
+    // 막는 건 여기, 즉 consumeItem 호출 전이어야 한다(안 그러면 이미 걸려 있는데도
+    // 아이템만 조용히 사라진다).
+    if (type === "doubleReward" && doubleRewardActive) {
+      toast.openToast("이미 다음 스테이지에 재화 2배가 적용돼 있어요.");
+      return;
+    }
     if (!consumeItem(type)) return;
     if (type === "timeBoost") {
       // [FIXED 2026-08-11] 예전엔 timer.addTime(5)로 즉시 적용했는데, ⑤에서 아이템을
@@ -93,13 +106,17 @@ export function GameShell() {
       // PuzzlePage의 timer.reset(initialSecondsForStage(stage))가 타이머를 덮어써서
       // +5초가 통째로 사라진다. 다른 아이템 2종처럼 보류 플래그로 두고 다음 스테이지
       // 시작 시간에 반영한다.
-      setTimeBoostActive(true);
+      // [UPDATED 2026-08-13] boolean → 스택. 여러 개 쓰면 +5초씩 누적된다.
+      const next = timeBoostCharges + 1;
+      setTimeBoostCharges(next);
       toast.openToast(
-        `다음 스테이지 제한시간이 ${TIME_BOOST_BONUS_SECONDS}초 늘어나요!`,
+        `다음 스테이지 제한시간이 ${TIME_BOOST_BONUS_SECONDS}초 늘어나요! (누적 ${next}개)`,
       );
     } else if (type === "mismatchShield") {
-      setShieldActive(true);
-      toast.openToast("다음 오답은 페널티 없이 넘어가요.");
+      // [UPDATED 2026-08-13] boolean → 스택. 오답을 낼 때마다 1개씩 소모된다.
+      const next = shieldCharges + 1;
+      setShieldCharges(next);
+      toast.openToast(`오답 방패가 ${next}개 준비됐어요. 오답마다 1개씩 소모돼요.`);
     } else if (type === "doubleReward") {
       setDoubleRewardActive(true);
       toast.openToast("다음 스테이지 클리어 보상이 2배가 돼요.");
@@ -134,11 +151,11 @@ export function GameShell() {
 
     resetStage();
     runState.resetRun();
-    // 아이템 효과는 런에 딸린 일시 상태라 함께 정리한다 — 실패한 런에서 켜둔 방패가
-    // 새 런 1스테이지로 넘어가면 안 된다.
-    setShieldActive(false);
+    // 아이템 효과는 런에 딸린 일시 상태라 함께 정리한다 — 실패한 런에서 쌓아둔 방패
+    // 스택이 새 런 1스테이지로 넘어가면 안 된다.
+    setShieldCharges(0);
     setDoubleRewardActive(false);
-    setTimeBoostActive(false);
+    setTimeBoostCharges(0);
     setScreen("puzzle");
   };
 
@@ -160,16 +177,16 @@ export function GameShell() {
           onAdvanceStage={handleContinueToNextStage}
           onGoToGacha={handleGoToGacha}
           timer={timer}
-          shieldActive={shieldActive}
-          onConsumeShield={() => setShieldActive(false)}
+          shieldCharges={shieldCharges}
+          onConsumeShield={() => setShieldCharges((prev) => Math.max(0, prev - 1))}
           doubleRewardActive={doubleRewardActive}
           onConsumeDoubleReward={() => setDoubleRewardActive(false)}
           adCap={adCap}
           runState={runState}
           onRunReset={handleRunReset}
           stageSeconds={stageSeconds}
-          timeBoostActive={timeBoostActive}
-          onConsumeTimeBoost={() => setTimeBoostActive(false)}
+          timeBoostCharges={timeBoostCharges}
+          onConsumeTimeBoost={() => setTimeBoostCharges(0)}
         />
       ) : (
         <GachaPage
