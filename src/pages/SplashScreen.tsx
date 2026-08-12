@@ -62,7 +62,7 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
           letterSpacing: "-0.2px",
         }}
       >
-        패턴매칭 퍼즐
+        틀리면 끝, 동물찾기
       </div>
       <div
         style={{

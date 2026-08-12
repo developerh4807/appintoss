@@ -3,8 +3,9 @@ import { Button, useDialog } from "@toss/tds-mobile";
 import { useEffect, useRef, useState } from "react";
 
 import {
-  badgeCountForStage,
-  badgeRequiredForStage,
+  DISGUISE_LABELS,
+  disguiseCountForStage,
+  disguiseRequiredForStage,
   CRITICAL_TIME_RATIO,
   hideEnabledForStage,
   iconPoolForStage,
@@ -33,7 +34,7 @@ const CONTINUE_AD_ID = "ait-ad-test-rewarded-id";
 function boardOptionsForStage(stage: number) {
   return {
     iconPool: iconPoolForStage(stage),
-    badgeCount: badgeCountForStage(stage),
+    disguiseCount: disguiseCountForStage(stage),
   };
 }
 
@@ -161,7 +162,7 @@ export function PuzzlePage({
     if (selected.length < 2) return;
 
     const [first, second] = selected;
-    if (isMatch(first, second, { badgeRequired: badgeRequiredForStage(stage) })) {
+    if (isMatch(first, second, { disguiseRequired: disguiseRequiredForStage(stage) })) {
       setMatchedIds((prev) => [...prev, first.id, second.id]);
       setSelected([]);
       return;
@@ -278,7 +279,7 @@ export function PuzzlePage({
 
   const handleShare = () => {
     share({
-      message: `${tier.icon} 반응속도 ${tier.label}! 스테이지 ${clearedStage}까지 클리어했어요. 같이 맞춰볼래요?`,
+      message: `${tier.icon} [틀리면 끝, 동물찾기] 반응속도 ${tier.label}! 스테이지 ${clearedStage}까지 클리어했어요. 같이 해볼래요?`,
     }).catch((error) => {
       console.error("공유 실패:", error);
     });
@@ -352,7 +353,7 @@ export function PuzzlePage({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <h1 style={{ fontSize: "22px", fontWeight: 700, color: colors.inkPrimary }}>
-              패턴매칭 퍼즐
+              틀리면 끝, 동물찾기
             </h1>
             <div style={{ fontSize: "13px", color: colors.inkSecondary, fontWeight: 500, marginTop: "2px" }}>
               스테이지 {stage}
@@ -649,7 +650,9 @@ export function PuzzlePage({
 
           const label = isHidden
             ? "숨겨진 타일"
-            : `${tile.icon}${tile.badge ? ` ${tile.badge}` : ""}`;
+            : tile.disguise
+              ? `동물, ${DISGUISE_LABELS[tile.disguise]} 착용`
+              : "동물";
 
           return (
             <button
@@ -684,21 +687,34 @@ export function PuzzlePage({
                 </span>
               ) : (
                 <>
-                  <span aria-hidden="true">{tile.icon}</span>
-                  {/* 배지는 DOM에 실제 문자로 둔다 — CSS 배경만으로 그리면 스크린리더가 읽지 못한다. */}
-                  {tile.badge && (
+                  {/* 변장이 있으면 동물을 살짝 내려 겹침을 피한다. */}
+                  <span
+                    aria-hidden="true"
+                    style={
+                      tile.disguise ? { display: "block", marginTop: "8px" } : undefined
+                    }
+                  >
+                    {tile.icon}
+                  </span>
+                  {/* 변장은 DOM에 실제 문자로 둔다 — CSS 배경으로 그리면 스크린리더가 읽지 못한다.
+                      동물 머리 위쪽에 걸치도록 배치해 "쓰고 있다"로 읽히게 한다(귀퉁이 스티커처럼
+                      보이면 변장이 아니라 별개 표식으로 인식된다). */}
+                  {tile.disguise && (
                     <span
                       aria-hidden="true"
                       style={{
                         position: "absolute",
-                        top: "4px",
-                        right: "6px",
-                        fontSize: "13px",
+                        // 머리 "위"에 걸치게 둔다. 얼굴 위로 겹치면 어떤 동물인지 가려져
+                        // 매치 판별의 1차 기준(동물)이 오히려 흐려진다.
+                        top: "2%",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        fontSize: "16px",
                         lineHeight: 1,
-                        color: colors.inkPrimary,
+                        filter: "drop-shadow(0 1px 1px rgba(58,50,42,0.25))",
                       }}
                     >
-                      {tile.badge}
+                      {tile.disguise}
                     </span>
                   )}
                 </>
