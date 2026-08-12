@@ -21,7 +21,9 @@ import type { UseStageTimerReturn } from "../hooks/useStageTimer";
 import { colors } from "../theme";
 
 const CLEAR_REWARD = 10;
-const MISMATCH_DELAY_MS = 500;
+// [UPDATED 2026-08-13] 500 → 900. 오답 시 숨겨진 타일을 전부 잠깐 보여주는 용도까지
+// 겸하게 되면서, 위치를 눈에 담기엔 500ms가 너무 짧다는 실기기 피드백을 반영했다.
+const MISMATCH_DELAY_MS = 900;
 const COLUMNS = 4;
 // 타이머 게이지의 CSS 전환 시간(1s linear, 아래 timer-track 참고)과 맞춘 지연 —
 // 게이지가 시각적으로 완전히 비기 전에 "시간이 다 됐어요" 배너가 먼저 뜨는 걸 방지한다.
@@ -54,7 +56,8 @@ interface PuzzlePageProps {
   onAdvanceStage: () => void;
   onGoToGacha: () => void;
   timer: UseStageTimerReturn;
-  shieldActive: boolean;
+  /** 남은 미스매치 방패 개수 — 오답 1회당 1개씩 소모된다(0이면 페널티가 그대로 들어감). */
+  shieldCharges: number;
   onConsumeShield: () => void;
   doubleRewardActive: boolean;
   onConsumeDoubleReward: () => void;
@@ -63,7 +66,8 @@ interface PuzzlePageProps {
   onRunReset: () => void;
   /** 이번 스테이지의 실제 제한시간(시간 회복 보너스 포함). 게이지·임계 판정의 기준이다. */
   stageSeconds: number;
-  timeBoostActive: boolean;
+  /** 스테이지 시작 전 쌓아둔 시간 회복 개수 — 다음 스테이지 시작 시 개수 × 보너스초로 한 번에 반영된다. */
+  timeBoostCharges: number;
   onConsumeTimeBoost: () => void;
 }
 
@@ -74,7 +78,7 @@ export function PuzzlePage({
   onAdvanceStage,
   onGoToGacha,
   timer,
-  shieldActive,
+  shieldCharges,
   onConsumeShield,
   doubleRewardActive,
   onConsumeDoubleReward,
@@ -82,7 +86,7 @@ export function PuzzlePage({
   runState,
   onRunReset,
   stageSeconds,
-  timeBoostActive,
+  timeBoostCharges,
   onConsumeTimeBoost,
 }: PuzzlePageProps) {
   const [board, setBoard] = useState<Tile[]>(() =>
@@ -107,7 +111,7 @@ export function PuzzlePage({
   // 그중 시간 회복 아이템이 얹어준 보너스 초. 게이지에 별도 구간으로 그리기 위해
   // 기본치와 분리해 들고 있는다(0이면 보너스 구간을 아예 렌더하지 않는다).
   const activeBonusSecondsRef = useRef(
-    timeBoostActive ? TIME_BOOST_BONUS_SECONDS : 0,
+    timeBoostCharges * TIME_BOOST_BONUS_SECONDS,
   );
 
   const cleared = matchedIds.length === board.length;
@@ -148,13 +152,11 @@ export function PuzzlePage({
     // 부모의 stageSeconds가 즉시 줄어드는데, 게이지가 그 값을 나눗셈 분모로 쓰면
     // (남은 20초 / 기준 15초) 처럼 100%를 넘겨 게이지가 멈춘 것처럼 보인다.
     activeStageSecondsRef.current = stageSeconds;
-    activeBonusSecondsRef.current = timeBoostActive
-      ? TIME_BOOST_BONUS_SECONDS
-      : 0;
+    activeBonusSecondsRef.current = timeBoostCharges * TIME_BOOST_BONUS_SECONDS;
     timer.reset(stageSeconds);
     // 보너스는 이미 타이머에 반영됐으니 여기서 소모 처리한다 — 안 그러면 이후 모든
-    // 스테이지에 계속 적용된다.
-    if (timeBoostActive) onConsumeTimeBoost();
+    // 스테이지에 계속 적용된다. 쌓아뒀던 스택은 이 한 번의 적용으로 전부 소진된다.
+    if (timeBoostCharges > 0) onConsumeTimeBoost();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
@@ -169,7 +171,7 @@ export function PuzzlePage({
     }
 
     setWrongIds([first.id, second.id]);
-    if (shieldActive) {
+    if (shieldCharges > 0) {
       onConsumeShield();
     } else {
       timer.applyPenalty(MISMATCH_PENALTY_SECONDS);
@@ -498,6 +500,32 @@ export function PuzzlePage({
             </span>
           </div>
         )}
+
+        {/* [NEW 2026-08-13] 남은 방패 개수 표시 — 여러 개 스택했는데 몇 개가 남았는지
+            알 길이 없어서 "3개 썼는데 1번만 적용됐다"로 오인되던 걸 막는다. */}
+        {shieldCharges > 0 && (
+          <div
+            style={{
+              marginTop: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              alignSelf: "flex-start",
+              background: colors.surfaceRaised,
+              borderRadius: "999px",
+              padding: "4px 10px",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: colors.inkSecondary,
+            }}
+          >
+            <span aria-hidden="true">🛡️</span>
+            <span>
+              오답 방패 <strong style={{ color: colors.accent }}>×{shieldCharges}</strong>{" "}
+              남음
+            </span>
+          </div>
+        )}
       </div>
 
       {showFailureBanner && (
@@ -644,9 +672,12 @@ export function PuzzlePage({
           const isWrong = wrongIds.includes(tile.id);
           const isMatched = matchedIds.includes(tile.id);
           // 숨겨진 타일은 선택은 되되 내용을 공개하지 않는다 — 두 장을 모두 고른 뒤
-          // 매치 판정 결과로만 드러난다(신경쇠약 방식). 오답 하이라이트 중에는
-          // 무엇을 골랐는지 보여줘야 학습이 되므로 그때만 공개한다.
-          const isHidden = hiddenIds.includes(tile.id) && !isMatched && !isWrong;
+          // 매치 판정 결과로만 드러난다(신경쇠약 방식). 오답이 나면(wrongIds가 채워지는
+          // MISMATCH_DELAY_MS 동안) 고른 두 장뿐 아니라 숨겨진 타일 전체를 잠깐 공개한다
+          // — [UPDATED 2026-08-13] 실기기 피드백: 순차 숨김이 너무 가혹해서, 오답 낸
+          // 순간을 "위치를 외울 기회"로 바꿔 체감 난이도를 낮췄다. 판정 기준은 그대로
+          // 실제 icon/disguise라 이 공개는 순수 표현(presentation)일 뿐 밸런스에 영향 없다.
+          const isHidden = hiddenIds.includes(tile.id) && !isMatched && wrongIds.length === 0;
 
           const label = isHidden
             ? "숨겨진 타일"
