@@ -21,7 +21,13 @@ function loadProgress(): Progress {
       Number.isInteger(parsed?.stage) &&
       parsed.stage >= 1
     ) {
-      return parsed;
+      // [NEW 2026-08-12] 콜드 스타트 리셋 — stage는 localStorage에서 복원하지 않는다.
+      // 앱을 백그라운드로 보내기만 했다면(iOS/Android가 프로세스를 살려둔 경우) React
+      // 상태가 메모리에 남아있어 이 함수 자체가 다시 호출되지 않는다 — 즉 loadProgress가
+      // 실행된다는 건 예외 없이 "강제종료(스와이프) 또는 OS의 백그라운드 kill 이후 재시작"이라는
+      // 뜻이다. 그래서 이 시점의 stage는 항상 1로 되돌리고, currency는 오락실 런 리셋과
+      // 동일하게 유지한다(런을 거듭할수록 재화가 쌓이는 구조는 앱 재시작 여부와 무관해야 함).
+      return { currency: parsed.currency, stage: 1 };
     }
     return DEFAULT_PROGRESS;
   } catch (error) {

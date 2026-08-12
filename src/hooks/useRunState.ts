@@ -42,16 +42,15 @@ function loadState(): RunState {
       Number.isInteger(parsed?.bestStage) &&
       parsed.bestStage >= 1
     ) {
+      // [NEW 2026-08-12] 콜드 스타트 리셋 — useCurrency.loadProgress와 짝을 이룬다.
+      // loadState가 다시 호출된다는 건 곧 stage가 1로 되돌아갔다는 뜻(위 주석 참고)이므로,
+      // 여기서도 새 런이 시작된 것으로 취급해 retriesUsed를 0으로, bestStageAtRunStart를
+      // 지금까지의 bestStage로 다시 찍는다 — resetRun()과 동일한 처리다.
+      // bestStage(영구 최고기록)만은 그대로 복원한다.
       return {
-        retriesUsed: parsed.retriesUsed,
+        retriesUsed: 0,
         bestStage: parsed.bestStage,
-        // 이 필드가 없던 시절(또는 손상된) 저장값은 bestStage로 되돌린다 —
-        // 첫 런에서 "경신" 문구가 잘못 뜨지 않도록 보수적으로 잡는다.
-        bestStageAtRunStart:
-          Number.isInteger(parsed?.bestStageAtRunStart) &&
-          parsed.bestStageAtRunStart >= 1
-            ? parsed.bestStageAtRunStart
-            : parsed.bestStage,
+        bestStageAtRunStart: parsed.bestStage,
       };
     }
     return DEFAULT_RUN_STATE;
