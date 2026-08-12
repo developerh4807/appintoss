@@ -31,13 +31,30 @@ export function initialSecondsForStage(stage: number): number {
 // [NEW 2026-08-11] 난이도 파생 — spec-pattern-match-difficulty.md 구간표의 SoT.
 //
 // 그리드(MAX_TILES 24)와 제한시간(하한 5초)은 스테이지 13에서 둘 다 멈춘다. 그 이후로도
-// 난이도가 계속 오르게 하는 축이 여기 있는 셋이다: 순차 숨김 · 배지 · 아이콘 풀 축소.
+// 난이도가 계속 오르게 하는 축이 여기 있는 셋이다: 순차 숨김 · 변장 · 아이콘 풀 축소.
 // 축이 동시에 뛰지 않도록 구간을 어긋 배치했다(스펙 "통합 스테이지 구간표" 참고).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** 매치 판별에 쓰는 보조 도형 배지. 색이 아니라 **도형**이 유일한 판별 기준이다. */
-export const BADGE_SHAPES = ["●", "▲", "■", "◆"] as const;
-export type BadgeShape = (typeof BADGE_SHAPES)[number];
+/**
+ * 매치 판별에 쓰는 **변장 아이템**. 같은 동물이라도 변장이 다르면 다른 타일이다.
+ *
+ * [UPDATED 2026-08-11] 처음엔 도형 배지(●▲■◆)였으나 UX가 무미건조하다는 피드백으로
+ * 변장 컨셉으로 교체했다. 색이 아니라 **형태**가 판별 기준이라는 접근성 계약은 그대로다 —
+ * 안경·모자는 실루엣이 서로 뚜렷이 달라 도형보다 오히려 구별이 쉽다.
+ *
+ * 순서는 구별하기 쉬운 것부터다(변장 종수가 스테이지에 따라 앞에서부터 늘어나므로,
+ * 초반 구간일수록 쉬운 조합만 등장한다).
+ */
+export const DISGUISES = ["🕶️", "🎩", "🎀", "👑"] as const;
+export type Disguise = (typeof DISGUISES)[number];
+
+/** 스크린리더용 이름 — 이모지 그대로 읽히면 무엇을 쓴 건지 전달되지 않는다. */
+export const DISGUISE_LABELS: Record<Disguise, string> = {
+  "🕶️": "선글라스",
+  "🎩": "모자",
+  "🎀": "리본",
+  "👑": "왕관",
+};
 
 // 실루엣이 비슷한 것끼리 묶은 그룹. 풀을 좁히면 서로 헷갈리는 아이콘만 남아 난이도가 오른다.
 // 그룹 크기가 2~4로 고르지 않아 "단일 그룹"으로는 12쌍을 못 채운다 — 그래서 아래
@@ -52,11 +69,11 @@ const ICON_GROUPS = {
 /**
  * 이 스테이지에서 쓸 아이콘 풀. 후반으로 갈수록 좁혀 변별을 어렵게 한다.
  *
- * 풀을 좁히면 (풀 × 배지종수) 조합 공간이 줄어 쌍 고유성이 깨질 수 있으므로,
- * **배지가 먼저 도입된 뒤에** 좁히는 순서를 지킨다(스펙 AD-4).
+ * 풀을 좁히면 (풀 × 변장종수) 조합 공간이 줄어 쌍 고유성이 깨질 수 있으므로,
+ * **변장이 먼저 도입된 뒤에** 좁히는 순서를 지킨다(스펙 AD-4).
  */
 export function iconPoolForStage(stage: number): string[] {
-  // 20+ : 풀 3 — 곰·판다과 단독. 배지 4종과 곱해 정확히 12쌍이 나온다(더 줄이면 깨진다).
+  // 20+ : 풀 3 — 곰·판다과 단독. 변장 4종과 곱해 정확히 12쌍이 나온다(더 줄이면 깨진다).
   if (stage >= 20) return [...ICON_GROUPS.bear];
   // 13~19 : 풀 6 — 고양이과 + 곰·판다과. 둘 다 둥근 얼굴이라 서로 헷갈린다.
   if (stage >= 13) return [...ICON_GROUPS.feline, ...ICON_GROUPS.bear];
@@ -69,17 +86,17 @@ export function iconPoolForStage(stage: number): string[] {
   ];
 }
 
-/** 이 스테이지에서 쓸 배지 종수. 0이면 배지를 붙이지 않는다. */
-export function badgeCountForStage(stage: number): number {
+/** 이 스테이지에서 쓸 변장 종수. 0이면 변장 없이 맨얼굴만 나온다. */
+export function disguiseCountForStage(stage: number): number {
   if (stage >= 16) return 4;
   if (stage >= 13) return 3;
   if (stage >= 10) return 2;
   return 0;
 }
 
-/** 매치에 배지 일치까지 요구하는지. 배지가 붙는 구간과 항상 같이 간다. */
-export function badgeRequiredForStage(stage: number): boolean {
-  return badgeCountForStage(stage) > 0;
+/** 매치에 변장 일치까지 요구하는지. 변장이 붙는 구간과 항상 같이 간다. */
+export function disguiseRequiredForStage(stage: number): boolean {
+  return disguiseCountForStage(stage) > 0;
 }
 
 // ── 순차 숨김 스케줄 ──────────────────────────────────────────────────────────
