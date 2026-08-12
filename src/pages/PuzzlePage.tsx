@@ -3,13 +3,18 @@ import { Button, useDialog } from "@toss/tds-mobile";
 import { useEffect, useRef, useState } from "react";
 
 import {
+  badgeCountForStage,
+  badgeRequiredForStage,
   CRITICAL_TIME_RATIO,
+  hideEnabledForStage,
+  iconPoolForStage,
   MISMATCH_PENALTY_SECONDS,
   TIME_BOOST_BONUS_SECONDS,
 } from "../game/balance";
 import { openLeaderboard, scoreForRun, tierForStage } from "../game/leaderboard";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
+import { useHideSchedule } from "../hooks/useHideSchedule";
 import { useInAppAds } from "../hooks/useInAppAds";
 import type { UseStageTimerReturn } from "../hooks/useStageTimer";
 import { colors } from "../theme";
@@ -22,6 +27,15 @@ const COLUMNS = 4;
 const FAILURE_BANNER_DELAY_MS = 1000;
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
 const CONTINUE_AD_ID = "ait-ad-test-rewarded-id";
+
+// 보드 생성에 필요한 난이도 파생값을 한 곳에서 묶는다 — 보드를 만드는 지점이 셋
+// (최초 마운트·스테이지 전환·무료 재시도)이라 각자 계산하면 어긋나기 쉽다.
+function boardOptionsForStage(stage: number) {
+  return {
+    iconPool: iconPoolForStage(stage),
+    badgeCount: badgeCountForStage(stage),
+  };
+}
 
 interface RunState {
   retriesUsed: number;
@@ -70,7 +84,9 @@ export function PuzzlePage({
   timeBoostActive,
   onConsumeTimeBoost,
 }: PuzzlePageProps) {
-  const [board, setBoard] = useState<Tile[]>(() => generateBoard(stage));
+  const [board, setBoard] = useState<Tile[]>(() =>
+    generateBoard(stage, boardOptionsForStage(stage)),
+  );
   const [matchedIds, setMatchedIds] = useState<string[]>([]);
   const [selected, setSelected] = useState<Tile[]>([]);
   const [wrongIds, setWrongIds] = useState<string[]>([]);
@@ -95,6 +111,20 @@ export function PuzzlePage({
 
   const cleared = matchedIds.length === board.length;
   const failed = timer.isExpired && !cleared;
+
+  // 순차 숨김 — 아직 매치되지 않은 타일만 대상이다. 클리어·실패 후에는 더 숨기지 않도록
+  // 타이머의 정지 상태에 더해 두 상태를 함께 넘긴다.
+  const activeIds = board
+    .filter((tile) => !matchedIds.includes(tile.id))
+    .map((tile) => tile.id);
+  const hiddenIds = useHideSchedule({
+    enabled: hideEnabledForStage(stage),
+    stage,
+    stageSeconds: activeStageSecondsRef.current,
+    timeLeft: timer.timeLeft,
+    activeIds,
+    isPaused: timer.isPaused || cleared || failed,
+  });
   // 결과 카드는 전부 "클리어한" 스테이지 기준으로 말한다. 런이 끝나는 시점의 `stage`는
   // 실패한(=클리어 못 한) 스테이지라 그대로 쓰면 "도달 2 / 1,000점"처럼 표시가 어긋나고,
   // 스테이지 2에서 처음 죽어도 매번 "기록 경신"이 뜬다.
@@ -103,7 +133,7 @@ export function PuzzlePage({
   const tier = tierForStage(clearedStage);
 
   useEffect(() => {
-    setBoard(generateBoard(stage));
+    setBoard(generateBoard(stage, boardOptionsForStage(stage)));
     setMatchedIds([]);
     setSelected([]);
     setWrongIds([]);
@@ -131,7 +161,7 @@ export function PuzzlePage({
     if (selected.length < 2) return;
 
     const [first, second] = selected;
-    if (isMatch(first, second)) {
+    if (isMatch(first, second, { badgeRequired: badgeRequiredForStage(stage) })) {
       setMatchedIds((prev) => [...prev, first.id, second.id]);
       setSelected([]);
       return;
@@ -236,7 +266,7 @@ export function PuzzlePage({
   const handleFreeRetry = () => {
     if (!runState.canRetry) return;
     runState.recordRetry();
-    setBoard(generateBoard(stage));
+    setBoard(generateBoard(stage, boardOptionsForStage(stage)));
     setMatchedIds([]);
     setSelected([]);
     setWrongIds([]);
@@ -612,12 +642,24 @@ export function PuzzlePage({
           const isSelected = selected.some((t) => t.id === tile.id);
           const isWrong = wrongIds.includes(tile.id);
           const isMatched = matchedIds.includes(tile.id);
+          // 숨겨진 타일은 선택은 되되 내용을 공개하지 않는다 — 두 장을 모두 고른 뒤
+          // 매치 판정 결과로만 드러난다(신경쇠약 방식). 오답 하이라이트 중에는
+          // 무엇을 골랐는지 보여줘야 학습이 되므로 그때만 공개한다.
+          const isHidden = hiddenIds.includes(tile.id) && !isMatched && !isWrong;
+
+          const label = isHidden
+            ? "숨겨진 타일"
+            : `${tile.icon}${tile.badge ? ` ${tile.badge}` : ""}`;
 
           return (
             <button
               key={tile.id}
               onClick={() => handleTap(tile)}
+              aria-label={label}
+              aria-pressed={isSelected}
+              disabled={isMatched}
               style={{
+                position: "relative",
                 aspectRatio: "1",
                 fontSize: "30px",
                 borderRadius: "20px",
@@ -632,7 +674,35 @@ export function PuzzlePage({
                 cursor: isMatched ? "default" : "pointer",
               }}
             >
-              {tile.icon}
+              {/* 숨김은 색이 아니라 형태(물음표)로 신호한다 — 색상 단독 신호 금지 계약. */}
+              {isHidden ? (
+                <span
+                  aria-hidden="true"
+                  style={{ color: colors.inkSecondary, fontWeight: 700 }}
+                >
+                  ?
+                </span>
+              ) : (
+                <>
+                  <span aria-hidden="true">{tile.icon}</span>
+                  {/* 배지는 DOM에 실제 문자로 둔다 — CSS 배경만으로 그리면 스크린리더가 읽지 못한다. */}
+                  {tile.badge && (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        top: "4px",
+                        right: "6px",
+                        fontSize: "13px",
+                        lineHeight: 1,
+                        color: colors.inkPrimary,
+                      }}
+                    >
+                      {tile.badge}
+                    </span>
+                  )}
+                </>
+              )}
             </button>
           );
         })}
