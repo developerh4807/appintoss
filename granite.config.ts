@@ -8,7 +8,8 @@ export default defineConfig({
     icon: "", // 화면에 노출될 앱의 아이콘 이미지 주소로 바꿔주세요.
   },
   web: {
-    host: "localhost",
+    // 실기기 샌드박스 테스트용 — 맥의 LAN IP (Wi-Fi 바뀌면 다시 확인해서 갱신해야 함: `ipconfig getifaddr en0`)
+    host: "172.30.1.6",
     port: 5173,
     commands: {
       dev: "vite dev",
