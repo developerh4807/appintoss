@@ -1,8 +1,9 @@
 import { Button, sharePayload, useDialog, vibrate } from "@platform";
 import { useEffect, useRef, useState } from "react";
+import { Trans, useTranslation } from "react-i18next";
 
 import {
-  DISGUISE_LABELS,
+  DISGUISE_LABEL_KEYS,
   disguiseCountForStage,
   disguiseRequiredForStage,
   CRITICAL_TIME_RATIO,
@@ -96,6 +97,7 @@ export function PuzzlePage({
   timeBoostCharges,
   onConsumeTimeBoost,
 }: PuzzlePageProps) {
+  const { t } = useTranslation();
   const [board, setBoard] = useState<Tile[]>(() =>
     generateBoard(stage, boardOptionsForStage(stage)),
   );
@@ -234,7 +236,7 @@ export function PuzzlePage({
 
     if (timer.timeLeft === 0 && !failureAnnouncedRef.current) {
       failureAnnouncedRef.current = true;
-      setAnnouncement("시간이 다 됐어요. 스테이지에 실패했어요.");
+      setAnnouncement(t("puzzle.a11yTimeUp"));
       return;
     }
 
@@ -245,9 +247,10 @@ export function PuzzlePage({
       !thresholdAnnouncedRef.current
     ) {
       thresholdAnnouncedRef.current = true;
-      setAnnouncement("시간이 얼마 남지 않았어요.");
+      setAnnouncement(t("puzzle.a11yTimeLow"));
     }
-  }, [timer.timeLeft, cleared, stage]);
+    // t는 언어가 바뀔 때만 새 참조가 되므로 deps에 넣어도 매 렌더 재실행되지 않는다.
+  }, [timer.timeLeft, cleared, stage, t]);
 
   useEffect(() => {
     if (
@@ -293,7 +296,11 @@ export function PuzzlePage({
 
   const handleShare = () => {
     void sharePayload({
-      message: `${tier.icon} [틀리면 끝, 동물찾기] 반응속도 ${tier.label}! 스테이지 ${clearedStage}까지 클리어했어요. 같이 해볼래요?`,
+      message: t("puzzle.shareMessage", {
+        icon: tier.icon,
+        tier: t(tier.labelKey),
+        stage: clearedStage,
+      }),
     });
   };
 
@@ -306,8 +313,8 @@ export function PuzzlePage({
   const handleContinueAd = () => {
     if (!adCap.canWatch) {
       dialog.openAlert({
-        title: "오늘의 광고 시청 횟수를 모두 사용했어요",
-        description: "내일 다시 시도해 주세요.",
+        title: t("puzzle.adCapTitle"),
+        description: t("puzzle.adCapDescription"),
       });
       return;
     }
@@ -365,10 +372,10 @@ export function PuzzlePage({
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
             <h1 style={{ fontSize: "22px", fontWeight: 700, color: colors.inkPrimary }}>
-              틀리면 끝, 동물찾기
+              {t("puzzle.title")}
             </h1>
             <div style={{ fontSize: "13px", color: colors.inkSecondary, fontWeight: 500, marginTop: "2px" }}>
-              스테이지 {stage}
+              {t("puzzle.stage", { stage })}
             </div>
           </div>
           {/* [UPDATED 2026-08-11] 🎒 즉시사용 버튼 제거 — 아이템은 뽑기 화면(GachaPage
@@ -503,10 +510,18 @@ export function PuzzlePage({
           >
             <span aria-hidden="true">⏱️</span>
             <span>
-              시간 회복 적용 — {baseSeconds}초 →{" "}
-              <strong style={{ color: colors.accent }}>
-                {activeStageSecondsRef.current}초
-              </strong>
+              {/* <1>은 ko/en 리소스의 강조 구간과 대응한다 — 문장 어순이 언어마다 달라도
+                  강조 위치가 따라간다. */}
+              <Trans
+                i18nKey="puzzle.timeBoostApplied"
+                values={{
+                  base: baseSeconds,
+                  total: activeStageSecondsRef.current,
+                }}
+                components={{
+                  1: <strong style={{ color: colors.accent }} />,
+                }}
+              />
             </span>
           </div>
         )}
@@ -531,8 +546,13 @@ export function PuzzlePage({
           >
             <span aria-hidden="true">🛡️</span>
             <span>
-              오답 방패 <strong style={{ color: colors.accent }}>×{shieldCharges}</strong>{" "}
-              남음
+              <Trans
+                i18nKey="puzzle.shieldRemaining"
+                values={{ count: shieldCharges }}
+                components={{
+                  1: <strong style={{ color: colors.accent }} />,
+                }}
+              />
             </span>
           </div>
         )}
@@ -560,7 +580,9 @@ export function PuzzlePage({
             // 없다. 대신 로컬 최고기록 비교와 동물 티어로 성취감을 표현하고,
             // 전체 순위는 "랭킹 보기"로 토스 웹뷰에 위임한다.
             <>
-              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>런 종료</div>
+              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>
+                {t("puzzle.runOver")}
+              </div>
 
               <div
                 style={{
@@ -577,7 +599,7 @@ export function PuzzlePage({
                 </span>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: "17px", fontWeight: 700, color: colors.inkPrimary }}>
-                    {tier.label}
+                    {t(tier.labelKey)}
                   </div>
                   <div
                     style={{
@@ -586,26 +608,29 @@ export function PuzzlePage({
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    스테이지 {clearedStage} 클리어 · {scoreForRun(clearedStage).toLocaleString()}점
+                    {t("puzzle.stageCleared", {
+                      stage: clearedStage,
+                      score: scoreForRun(clearedStage).toLocaleString(),
+                    })}
                   </div>
                 </div>
               </div>
 
               <div style={{ fontSize: "13px", color: colors.inkSecondary, lineHeight: 1.5 }}>
                 {isNewRecord ? (
-                  <strong>최고 기록을 경신했어요!</strong>
+                  <strong>{t("puzzle.newRecord")}</strong>
                 ) : (
                   // 경신 못 했으면 기존 기록을 보여준다. clearedStage와 bestStage는 같은 값이라
                   // 여기서 bestStage를 쓰면 방금 말한 숫자를 되풀이하게 되므로 런 시작 시점 값을 쓴다.
-                  <>최고 기록은 스테이지 {runState.bestStageAtRunStart}예요.</>
+                  <>{t("puzzle.bestRecord", { stage: runState.bestStageAtRunStart })}</>
                 )}
                 <br />
-                모아둔 재화와 아이템은 그대로 남아 있어요.
+                {t("puzzle.keepsBelongings")}
               </div>
 
               <div style={{ display: "flex", gap: "8px" }}>
                 <Button size="small" variant="weak" onClick={handleShare}>
-                  공유하기
+                  {t("puzzle.share")}
                 </Button>
                 {/* [UPDATED 2026-08-21] Android 빌드에는 순위 화면이 없다(로컬 최고기록만).
                     누르면 아무 일도 안 일어나는 버튼을 남기느니 플랫폼별로 숨긴다. */}
@@ -615,19 +640,24 @@ export function PuzzlePage({
                     variant="weak"
                     onClick={handleOpenLeaderboard}
                   >
-                    랭킹 보기
+                    {t("puzzle.ranking")}
                   </Button>
                 )}
                 <Button size="small" onClick={onRunReset}>
-                  다시 도전
+                  {t("puzzle.retryRun")}
                 </Button>
               </div>
             </>
           ) : (
             <>
-              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>시간이 다 됐어요!</div>
+              <div style={{ fontWeight: 700, color: colors.inkPrimary }}>
+                {t("puzzle.timeUp")}
+              </div>
               <div style={{ fontSize: "12px", color: colors.inkSecondary }}>
-                이번 런 무료 재시도 {runState.retriesUsed}/{runState.maxRetries}회 사용
+                {t("puzzle.retriesUsed", {
+                  used: runState.retriesUsed,
+                  max: runState.maxRetries,
+                })}
               </div>
               <div style={{ display: "flex", gap: "8px" }}>
                 <Button
@@ -636,15 +666,19 @@ export function PuzzlePage({
                   disabled={!runState.canRetry}
                   onClick={handleFreeRetry}
                 >
-                  무료로 재시도
+                  {t("puzzle.freeRetry")}
                 </Button>
                 <Button
                   size="small"
-                  loading={!continueAd.isAdLoaded}
-                  disabled={!continueAd.isSupported || !adCap.canWatch}
+                  loading={continueAd.isLoading}
+                  disabled={
+                    !continueAd.isSupported ||
+                    !adCap.canWatch ||
+                    !continueAd.isAdLoaded
+                  }
                   onClick={handleContinueAd}
                 >
-                  광고 보고 이어하기
+                  {t("puzzle.watchAdContinue")}
                 </Button>
               </div>
             </>
@@ -698,10 +732,12 @@ export function PuzzlePage({
           const isHidden = hiddenIds.includes(tile.id) && !isMatched && wrongIds.length === 0;
 
           const label = isHidden
-            ? "숨겨진 타일"
+            ? t("puzzle.a11yHiddenTile")
             : tile.disguise
-              ? `동물, ${DISGUISE_LABELS[tile.disguise]} 착용`
-              : "동물";
+              ? t("puzzle.a11yAnimalDisguised", {
+                  disguise: t(DISGUISE_LABEL_KEYS[tile.disguise]),
+                })
+              : t("puzzle.a11yAnimal");
 
           return (
             <button
@@ -795,10 +831,10 @@ export function PuzzlePage({
             }}
           >
             <div style={{ fontSize: "20px", fontWeight: 700, color: colors.inkPrimary, marginBottom: "8px" }}>
-              스테이지 클리어!
+              {t("puzzle.clearTitle")}
             </div>
             <div style={{ fontSize: "15px", color: colors.inkSecondary, marginBottom: "20px", lineHeight: 1.5 }}>
-              재화 {clearedReward}개를 획득했어요.
+              {t("puzzle.clearReward", { reward: clearedReward })}
             </div>
             <button
               onClick={onAdvanceStage}
@@ -815,7 +851,7 @@ export function PuzzlePage({
                 marginBottom: "8px",
               }}
             >
-              다음 스테이지
+              {t("puzzle.nextStage")}
             </button>
             <button
               onClick={onGoToGacha}
@@ -831,7 +867,7 @@ export function PuzzlePage({
                 cursor: "pointer",
               }}
             >
-              뽑으러 가기 🎁
+              {t("puzzle.goToGacha")}
             </button>
           </div>
         </div>

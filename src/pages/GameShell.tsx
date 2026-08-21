@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useToast } from "@platform";
+import { useTranslation } from "react-i18next";
+import { registerBackButton, useToast } from "@platform";
 
 import {
   initialSecondsForStage,
@@ -13,6 +14,7 @@ import { useDailyAdCap } from "../hooks/useDailyAdCap";
 import { useInAppAds } from "../hooks/useInAppAds";
 import { useRunState } from "../hooks/useRunState";
 import { useInventory } from "../hooks/useInventory";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { useStageTimer } from "../hooks/useStageTimer";
 import { useTossBanner } from "../hooks/useTossBanner";
 import { colors } from "../theme";
@@ -28,6 +30,7 @@ type Screen = "puzzle" | "gacha";
 export function GameShell() {
   // [UPDATED 2026-07-20] 하단 탭 제거 — 뽑기는 스테이지 클리어 다이얼로그의 분기로만 진입한다.
   // 타이머가 도는 스테이지 중엔 화면 전환 자체가 불가능해 "보이지 않는 동안 시간이 새는" 문제가 없다.
+  const { t } = useTranslation();
   const [screen, setScreen] = useState<Screen>("puzzle");
   const { currency, stage, addReward, advanceStage, resetStage, spendCurrency } =
     useCurrency();
@@ -55,6 +58,20 @@ export function GameShell() {
   const timer = useStageTimer(stageSeconds);
   const banner = useTossBanner();
   const bannerRef = useRef<HTMLDivElement>(null);
+  const isOnline = useOnlineStatus();
+
+  // [NEW 2026-08-21] 하드웨어 뒤로가기(8️⃣④). 뽑기 화면에서는 퍼즐로 되돌리고,
+  // 퍼즐 화면(최상위)에서만 false를 반환해 앱이 종료되게 한다.
+  // 타이머가 도는 중에 화면을 뺏지 않으려면 퍼즐에서는 가로채지 않는 편이 맞다.
+  useEffect(() => {
+    return registerBackButton(() => {
+      if (screen === "gacha") {
+        setScreen("puzzle");
+        return true;
+      }
+      return false;
+    });
+  }, [screen]);
 
   // 배너는 뽑기 화면에서만 mount되므로 퍼즐 화면에서는 bannerRef.current가 null이고
   // attach 자체가 일어나지 않는다. screen을 deps에 넣어야 뽑기 화면 재진입 시
@@ -73,7 +90,7 @@ export function GameShell() {
 
   const handlePull = () => {
     if (!spendCurrency(PULL_COST)) {
-      toast.openToast(`재화가 부족해요. 뽑기에는 ${PULL_COST}개가 필요해요.`);
+      toast.openToast(t("toast.notEnoughCurrency", { cost: PULL_COST }));
       return;
     }
     const rolled = rollItem();
@@ -83,7 +100,7 @@ export function GameShell() {
 
   const handlePullAd = () => {
     if (!adCap.canWatch) {
-      toast.openToast("오늘의 광고 시청 횟수를 모두 사용했어요. 내일 다시 시도해 주세요.");
+      toast.openToast(t("toast.adCapReached"));
       return;
     }
     pullAd.showAd();
@@ -94,7 +111,7 @@ export function GameShell() {
     // 막는 건 여기, 즉 consumeItem 호출 전이어야 한다(안 그러면 이미 걸려 있는데도
     // 아이템만 조용히 사라진다).
     if (type === "doubleReward" && doubleRewardActive) {
-      toast.openToast("이미 다음 스테이지에 재화 2배가 적용돼 있어요.");
+      toast.openToast(t("toast.doubleRewardAlready"));
       return;
     }
     if (!consumeItem(type)) return;
@@ -108,16 +125,19 @@ export function GameShell() {
       const next = timeBoostCharges + 1;
       setTimeBoostCharges(next);
       toast.openToast(
-        `다음 스테이지 제한시간이 ${TIME_BOOST_BONUS_SECONDS}초 늘어나요! (누적 ${next}개)`,
+        t("toast.timeBoostReady", {
+          seconds: TIME_BOOST_BONUS_SECONDS,
+          count: next,
+        }),
       );
     } else if (type === "mismatchShield") {
       // [UPDATED 2026-08-13] boolean → 스택. 오답을 낼 때마다 1개씩 소모된다.
       const next = shieldCharges + 1;
       setShieldCharges(next);
-      toast.openToast(`오답 방패가 ${next}개 준비됐어요. 오답마다 1개씩 소모돼요.`);
+      toast.openToast(t("toast.shieldReady", { count: next }));
     } else if (type === "doubleReward") {
       setDoubleRewardActive(true);
-      toast.openToast("다음 스테이지 클리어 보상이 2배가 돼요.");
+      toast.openToast(t("toast.doubleRewardReady"));
     }
   };
 
@@ -167,6 +187,24 @@ export function GameShell() {
         background: colors.surfaceBase,
       }}
     >
+      {/* [NEW 2026-08-21] 오프라인 안내(8️⃣④). 게임 자체는 서버가 없어 오프라인에서도
+          완전히 동작하므로 플레이를 막지 않고 상단에 얇게만 알린다 —
+          알려야 하는 건 "광고 보상이 지금은 안 된다"는 것뿐이다. */}
+      {!isOnline && (
+        <div
+          style={{
+            padding: "8px 20px",
+            background: colors.accentLight,
+            color: colors.accent,
+            fontSize: "12px",
+            fontWeight: 600,
+            textAlign: "center",
+          }}
+        >
+          {t("common.offline")}
+        </div>
+      )}
+
       {screen === "puzzle" ? (
         <PuzzlePage
           currency={currency}
@@ -194,12 +232,17 @@ export function GameShell() {
           onPullAd={handlePullAd}
           pullAdLoaded={pullAd.isAdLoaded}
           pullAdSupported={pullAd.isSupported}
+          pullAdLoading={pullAd.isLoading}
           adCapCanWatch={adCap.canWatch}
           onUseItem={handleUseItem}
           revealedItem={revealedItem}
           onDismissReveal={() => {
             if (revealedItem) {
-              toast.openToast(`뽑기 성공: ${itemDef(revealedItem).label} 획득!`);
+              toast.openToast(
+                t("toast.pullSuccess", {
+                  item: t(itemDef(revealedItem).labelKey),
+                }),
+              );
             }
             setRevealedItem(null);
           }}
@@ -234,7 +277,7 @@ export function GameShell() {
               padding: "2px 6px",
             }}
           >
-            광고
+            {t("common.ad")}
           </span>
           <div ref={bannerRef} style={{ flex: 1, height: "96px" }} />
         </div>

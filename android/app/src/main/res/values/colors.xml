@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- [NEW 2026-08-21] DESIGN.md 토큰(src/theme.ts)과 같은 값을 쓴다.
+     네이티브 스플래시 배경이 웹 배경(surfaceBase)과 다르면 앱 시작 시 색이 한 번 튄다. -->
+<resources>
+    <color name="surfaceBase">#FFF8EC</color>
+    <color name="colorPrimary">#FFC93C</color>
+    <color name="colorPrimaryDark">#E6A800</color>
+    <color name="colorAccent">#0F6E6B</color>
+</resources>

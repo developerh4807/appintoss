@@ -40,16 +40,17 @@ export function scoreForRun(bestStage: number, secondsLeft = 0): number {
 // "반응속도 나이" 프레이밍은 Brain Age/Lumosity가 받은 비과학성 비판과 같은 범주라
 // PRD §4.4에서 명시적으로 기각됐다. 티어는 과학적 측정을 함의하지 않는 재미 요소일 뿐이다.
 // [ASSUMPTION] 구간 경계는 플레이테스트로 조정 — ①의 난이도 커브 확정 후 재검토.
+// [UPDATED 2026-08-21] label 리터럴 → i18n 키. 표시 문자열은 호출부가 t()로 푼다.
 const TIERS = [
-  { minStage: 20, label: "치타급", icon: "🐆" },
-  { minStage: 14, label: "여우급", icon: "🦊" },
-  { minStage: 9, label: "사슴급", icon: "🦌" },
-  { minStage: 5, label: "하마급", icon: "🦛" },
-  { minStage: 1, label: "나무늘보급", icon: "🦥" },
+  { minStage: 20, labelKey: "tiers.cheetah", icon: "🐆" },
+  { minStage: 14, labelKey: "tiers.fox", icon: "🦊" },
+  { minStage: 9, labelKey: "tiers.deer", icon: "🦌" },
+  { minStage: 5, labelKey: "tiers.hippo", icon: "🦛" },
+  { minStage: 1, labelKey: "tiers.sloth", icon: "🦥" },
 ] as const;
 
 export interface Tier {
-  label: string;
+  labelKey: string;
   icon: string;
 }
 

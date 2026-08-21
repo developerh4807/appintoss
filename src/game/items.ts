@@ -3,8 +3,9 @@ export type ItemType = "timeBoost" | "mismatchShield" | "doubleReward";
 
 interface ItemDef {
   type: ItemType;
-  label: string;
-  description: string;
+  /** i18n 키 — 표시 문자열은 호출부가 t()로 푼다(itemLabelKey/itemDescriptionKey 참고). */
+  labelKey: string;
+  descriptionKey: string;
   weight: number;
 }
 
@@ -15,22 +16,22 @@ interface ItemDef {
 export const ITEM_POOL: ItemDef[] = [
   {
     type: "timeBoost",
-    label: "시간 회복",
+    labelKey: "items.timeBoost.label",
     // [UPDATED 2026-08-11] 즉시 적용이 아니라 다음 스테이지에 얹히는 보류 효과다 —
     // 아이템을 스테이지 시작 전에만 쓰도록 바뀌면서(⑤) 동작이 함께 바뀌었다.
-    description: "다음 스테이지 제한시간 +5초",
+    descriptionKey: "items.timeBoost.description",
     weight: 44,
   },
   {
     type: "mismatchShield",
-    label: "미스매치 방패",
-    description: "다음 미스매치 1회 페널티 없음",
+    labelKey: "items.mismatchShield.label",
+    descriptionKey: "items.mismatchShield.description",
     weight: 44,
   },
   {
     type: "doubleReward",
-    label: "재화 2배",
-    description: "다음 스테이지 클리어 시 재화 획득량 2배",
+    labelKey: "items.doubleReward.label",
+    descriptionKey: "items.doubleReward.description",
     weight: 12,
   },
 ];
