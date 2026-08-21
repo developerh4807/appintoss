@@ -46,3 +46,9 @@ export interface LeaderboardApi {
   /** 순위 화면을 띄울 수 있는 플랫폼인지. 버튼 노출 여부 판단에 쓴다. */
   canOpenLeaderboard: boolean;
 }
+
+/**
+ * 하드웨어 뒤로가기 핸들러. 처리했으면 true, 앱을 종료해도 되면 false를 반환한다.
+ * 토스에서는 토스 앱이 직접 처리하므로 구현이 no-op이다.
+ */
+export type BackHandler = () => boolean;

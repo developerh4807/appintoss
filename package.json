@@ -14,6 +14,10 @@
   },
   "dependencies": {
     "@apps-in-toss/web-framework": "^2.10.4",
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/splash-screen": "^8.0.2",
     "@emotion/react": "^11.0.0",
     "@toss/tds-colors": "latest",
     "@toss/tds-mobile": "latest",
@@ -25,6 +29,7 @@
     "react-i18next": "^17.0.12"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@eslint/js": "^9.21.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",

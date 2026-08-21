@@ -25,3 +25,12 @@ tasks
 _bmad/config.user.yaml
 _bmad/config.user.toml
 _bmad/custom/config.user.toml
+
+# capacitor android — 네이티브 프로젝트는 커밋하되 빌드 산출물은 제외
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/capacitor-cordova-android-plugins/

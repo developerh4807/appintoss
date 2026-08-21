@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useToast } from "@platform";
+import { registerBackButton, useToast } from "@platform";
 
 import {
   initialSecondsForStage,
@@ -14,6 +14,7 @@ import { useDailyAdCap } from "../hooks/useDailyAdCap";
 import { useInAppAds } from "../hooks/useInAppAds";
 import { useRunState } from "../hooks/useRunState";
 import { useInventory } from "../hooks/useInventory";
+import { useOnlineStatus } from "../hooks/useOnlineStatus";
 import { useStageTimer } from "../hooks/useStageTimer";
 import { useTossBanner } from "../hooks/useTossBanner";
 import { colors } from "../theme";
@@ -57,6 +58,20 @@ export function GameShell() {
   const timer = useStageTimer(stageSeconds);
   const banner = useTossBanner();
   const bannerRef = useRef<HTMLDivElement>(null);
+  const isOnline = useOnlineStatus();
+
+  // [NEW 2026-08-21] 하드웨어 뒤로가기(8️⃣④). 뽑기 화면에서는 퍼즐로 되돌리고,
+  // 퍼즐 화면(최상위)에서만 false를 반환해 앱이 종료되게 한다.
+  // 타이머가 도는 중에 화면을 뺏지 않으려면 퍼즐에서는 가로채지 않는 편이 맞다.
+  useEffect(() => {
+    return registerBackButton(() => {
+      if (screen === "gacha") {
+        setScreen("puzzle");
+        return true;
+      }
+      return false;
+    });
+  }, [screen]);
 
   // 배너는 뽑기 화면에서만 mount되므로 퍼즐 화면에서는 bannerRef.current가 null이고
   // attach 자체가 일어나지 않는다. screen을 deps에 넣어야 뽑기 화면 재진입 시
@@ -172,6 +187,24 @@ export function GameShell() {
         background: colors.surfaceBase,
       }}
     >
+      {/* [NEW 2026-08-21] 오프라인 안내(8️⃣④). 게임 자체는 서버가 없어 오프라인에서도
+          완전히 동작하므로 플레이를 막지 않고 상단에 얇게만 알린다 —
+          알려야 하는 건 "광고 보상이 지금은 안 된다"는 것뿐이다. */}
+      {!isOnline && (
+        <div
+          style={{
+            padding: "8px 20px",
+            background: colors.accentLight,
+            color: colors.accent,
+            fontSize: "12px",
+            fontWeight: 600,
+            textAlign: "center",
+          }}
+        >
+          {t("common.offline")}
+        </div>
+      )}
+
       {screen === "puzzle" ? (
         <PuzzlePage
           currency={currency}
