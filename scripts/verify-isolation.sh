@@ -16,13 +16,15 @@ echo "  ✓ 조건 1: PLATFORM=toss 빌드 성공"
 npm run build:android >/dev/null 2>&1 || { echo "✗ 조건 2: Android 빌드 실패"; exit 1; }
 echo "  ✓ 조건 2: PLATFORM=android 빌드 성공"
 
-toss_js=$(ls dist-toss/assets/*.js)
-android_js=$(ls dist-android/assets/*.js)
+# Capacitor 플러그인이 동적 import로 별도 청크를 만들 수 있으므로 청크 전체를 검사한다.
+# 파일 하나만 보면 새 청크에 섞여 들어간 참조를 놓친다.
+toss_js=(dist-toss/assets/*.js)
+android_js=(dist-android/assets/*.js)
 
 # 조건 3 — 토스 번들에 Capacitor/AdMob 이 0바이트여야 한다.
 # 주의: 토스 SDK 내부에 "AppsInTossAdMob" 심볼이 있어 단순 `grep admob` 은 오탐이다.
 # 우리가 막으려는 것은 @capacitor-community/admob 이므로 capacitor 로 검사한다.
-count=$(grep -ioc "capacitor" "$toss_js" || true)
+count=$(cat "${toss_js[@]}" | grep -ioc "capacitor" || true)
 if [ "$count" -eq 0 ]; then
   echo "  ✓ 조건 3: 토스 번들에 Capacitor/AdMob 0바이트"
 else
@@ -30,7 +32,7 @@ else
 fi
 
 # 조건 4 — Android 번들에 토스 SDK/TDS 가 0바이트여야 한다.
-count=$(grep -ioc "apps-in-toss\|tds-mobile" "$android_js" || true)
+count=$(cat "${android_js[@]}" | grep -ioc "apps-in-toss\|tds-mobile" || true)
 if [ "$count" -eq 0 ]; then
   echo "  ✓ 조건 4: Android 번들에 토스 SDK 0바이트"
 else
@@ -38,7 +40,7 @@ else
 fi
 
 echo "▶ 번들 크기"
-echo "  toss    : $(du -h "$toss_js"    | cut -f1)"
-echo "  android : $(du -h "$android_js" | cut -f1)"
+echo "  toss    : $(cat "${toss_js[@]}"    | wc -c | awk '{printf "%.0fK", $1/1024}') (청크 ${#toss_js[@]}개)"
+echo "  android : $(cat "${android_js[@]}" | wc -c | awk '{printf "%.0fK", $1/1024}') (청크 ${#android_js[@]}개)"
 
 exit $fail

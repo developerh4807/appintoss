@@ -10,3 +10,5 @@ export {
 } from "./leaderboard";
 export { vibrate } from "./haptics";
 export { Button, useDialog, useToast, PlatformProvider } from "./ui";
+export { registerBackButton } from "./appLifecycle";
+export type { BackHandler } from "../types";

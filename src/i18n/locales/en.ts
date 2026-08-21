@@ -4,6 +4,7 @@ export const en = {
   common: {
     confirm: "OK",
     ad: "Ad",
+    offline: "You're offline. Ad rewards will work once you reconnect.",
   },
   splash: {
     title: "One Miss, Game Over",
