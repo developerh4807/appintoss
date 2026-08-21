@@ -1,5 +1,4 @@
-import { share } from "@apps-in-toss/web-framework";
-import { Button, useDialog } from "@toss/tds-mobile";
+import { Button, sharePayload, useDialog, vibrate } from "@platform";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -12,7 +11,12 @@ import {
   MISMATCH_PENALTY_SECONDS,
   TIME_BOOST_BONUS_SECONDS,
 } from "../game/balance";
-import { openLeaderboard, scoreForRun, tierForStage } from "../game/leaderboard";
+import {
+  canOpenLeaderboard,
+  openLeaderboard,
+  scoreForRun,
+  tierForStage,
+} from "../game/leaderboard";
 import { generateBoard, isMatch } from "../game/patternMatch";
 import type { Tile } from "../game/patternMatch";
 import { useHideSchedule } from "../hooks/useHideSchedule";
@@ -21,6 +25,9 @@ import type { UseStageTimerReturn } from "../hooks/useStageTimer";
 import { colors } from "../theme";
 
 const CLEAR_REWARD = 10;
+// [NEW 2026-08-21] 햅틱 지속시간(ms). 실패가 더 길어야 "틀렸다"가 촉각만으로 구분된다.
+const MATCH_VIBRATION_MS = 20;
+const MISMATCH_VIBRATION_MS = 90;
 // [UPDATED 2026-08-13] 500 → 900. 오답 시 숨겨진 타일을 전부 잠깐 보여주는 용도까지
 // 겸하게 되면서, 위치를 눈에 담기엔 500ms가 너무 짧다는 실기기 피드백을 반영했다.
 const MISMATCH_DELAY_MS = 900;
@@ -165,11 +172,16 @@ export function PuzzlePage({
 
     const [first, second] = selected;
     if (isMatch(first, second, { disguiseRequired: disguiseRequiredForStage(stage) })) {
+      // [NEW 2026-08-21] 햅틱 — 성공은 짧게, 실패는 길게(4️⃣).
+      // 사운드 대신 채택했고, 무음 모드에서도 동작해 도달률이 더 높다.
+      // 토스 빌드에서는 어댑터가 no-op이라 동작이 그대로다.
+      vibrate(MATCH_VIBRATION_MS);
       setMatchedIds((prev) => [...prev, first.id, second.id]);
       setSelected([]);
       return;
     }
 
+    vibrate(MISMATCH_VIBRATION_MS);
     setWrongIds([first.id, second.id]);
     if (shieldCharges > 0) {
       onConsumeShield();
@@ -280,10 +292,8 @@ export function PuzzlePage({
   };
 
   const handleShare = () => {
-    share({
+    void sharePayload({
       message: `${tier.icon} [틀리면 끝, 동물찾기] 반응속도 ${tier.label}! 스테이지 ${clearedStage}까지 클리어했어요. 같이 해볼래요?`,
-    }).catch((error) => {
-      console.error("공유 실패:", error);
     });
   };
 
@@ -597,9 +607,17 @@ export function PuzzlePage({
                 <Button size="small" variant="weak" onClick={handleShare}>
                   공유하기
                 </Button>
-                <Button size="small" variant="weak" onClick={handleOpenLeaderboard}>
-                  랭킹 보기
-                </Button>
+                {/* [UPDATED 2026-08-21] Android 빌드에는 순위 화면이 없다(로컬 최고기록만).
+                    누르면 아무 일도 안 일어나는 버튼을 남기느니 플랫폼별로 숨긴다. */}
+                {canOpenLeaderboard && (
+                  <Button
+                    size="small"
+                    variant="weak"
+                    onClick={handleOpenLeaderboard}
+                  >
+                    랭킹 보기
+                  </Button>
+                )}
                 <Button size="small" onClick={onRunReset}>
                   다시 도전
                 </Button>

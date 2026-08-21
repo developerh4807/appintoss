@@ -1,0 +1,15 @@
+{
+  // [NEW 2026-08-21] Android(Play) 빌드용 타입체크 설정.
+  // @platform 을 android 구현으로 매핑하고, 토스 전용 코드는 아예 제외한다 —
+  // TDS/@apps-in-toss 에 직접 의존하는 파일이 Play 경로 타입체크에 섞이면
+  // 격리가 깨졌는지 여부를 타입체커가 알려주지 못한다.
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.android.tsBuildInfo",
+    "paths": {
+      "@platform": ["./src/platform/android/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "exclude": ["src/platform/toss"]
+}

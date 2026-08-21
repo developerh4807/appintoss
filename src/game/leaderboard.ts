@@ -1,9 +1,13 @@
-import {
-  openGameCenterLeaderboard,
-  submitGameCenterLeaderBoardScore,
-} from "@apps-in-toss/web-framework";
+// [UPDATED 2026-08-21] 플랫폼 호출(제출/열기)은 @platform 어댑터로 옮겼고,
+// 이 파일에는 플랫폼 무관 순수 로직(점수 압축·티어)만 남겼다.
+// 호출부가 import 경로를 바꾸지 않도록 어댑터 구현을 그대로 재수출한다.
+export {
+  submitScore,
+  openLeaderboard,
+  canOpenLeaderboard,
+} from "@platform";
 
-// [NEW 2026-08-11] 앱인토스 게임센터 리더보드 얇은 어댑터.
+// [NEW 2026-08-11] 리더보드 설계 배경.
 //
 // 조사 결과 확인된 제약(deferred-work.md ② 항목 참고):
 // - 순위를 조회하는 API가 없다. openGameCenterLeaderboard()는 Promise<void>로
@@ -54,40 +58,4 @@ export function tierForStage(stage: number): Tier {
   // 항상 매치되지만, 손상된 입력(0/음수)에 대비해 fallback을 남긴다.
   const matched = TIERS.find((tier) => stage >= tier.minStage);
   return matched ?? TIERS[TIERS.length - 1];
-}
-
-/**
- * 점수를 리더보드에 제출한다. 실패는 전부 조용히 삼킨다 — 미지원 앱 버전, 콘솔 미승인,
- * 게임 프로필 미생성 중 어느 것도 게임 흐름을 막아선 안 된다.
- *
- * 게임 프로필이 없으면 PROFILE_NOT_FOUND가 오므로 플레이가 끝난 뒤에 호출한다.
- */
-export async function submitScore(score: number): Promise<void> {
-  try {
-    const result = await submitGameCenterLeaderBoardScore({
-      score: String(score),
-    });
-
-    // undefined = 앱 버전 미지원. statusCode !== "SUCCESS" = 미승인/프로필 없음/파싱 실패.
-    if (!result) return;
-    if (result.statusCode !== "SUCCESS") {
-      console.info("리더보드 점수 제출 건너뜀:", result.statusCode);
-    }
-  } catch (error) {
-    console.error("리더보드 점수 제출 실패:", error);
-  }
-}
-
-/**
- * 토스 게임센터 리더보드 웹뷰를 연다. 순위를 코드로 읽어올 방법이 없어서
- * 유저가 등수를 보는 유일한 경로다.
- *
- * 호출하면 미니앱이 백그라운드로 전환되므로, 호출부는 먼저 게임 상태를 저장/일시정지해야 한다.
- */
-export async function openLeaderboard(): Promise<void> {
-  try {
-    await openGameCenterLeaderboard();
-  } catch (error) {
-    console.error("리더보드 열기 실패:", error);
-  }
 }

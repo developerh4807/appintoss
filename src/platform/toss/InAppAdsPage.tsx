@@ -1,8 +1,11 @@
 import { colors } from "@toss/tds-colors";
 import { Button, List, ListRow, TextButton, Top } from "@toss/tds-mobile";
 
-import { useInAppAds } from "../hooks/useInAppAds";
+import { useInAppAds } from "./ads";
 
+// [MOVED 2026-08-21] TDS 데모 페이지. App.tsx에서 참조하지 않는 참고용 화면이고
+// TDS(@toss/tds-*)에 직접 의존해 Android 빌드에는 들어갈 수 없다.
+// platform/toss/ 아래로 옮겨 Play 빌드의 타입체크·번들에서 완전히 빠지게 했다.
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
 const TEST_INTERSTITIAL_ID = "ait-ad-test-interstitial-id";
 const TEST_REWARDED_ID = "ait-ad-test-rewarded-id";

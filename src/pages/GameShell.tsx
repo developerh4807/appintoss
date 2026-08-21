@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useToast } from "@toss/tds-mobile";
+import { useToast } from "@platform";
 
 import {
   initialSecondsForStage,
@@ -62,9 +62,7 @@ export function GameShell() {
   useEffect(() => {
     if (!banner.isInitialized || !bannerRef.current) return;
 
-    const attached = banner.attachBanner(BANNER_AD_ID, bannerRef.current, {
-      variant: "expanded",
-    });
+    const attached = banner.attachBanner(BANNER_AD_ID, bannerRef.current);
 
     return () => {
       attached?.destroy();
