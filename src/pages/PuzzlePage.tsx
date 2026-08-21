@@ -670,8 +670,12 @@ export function PuzzlePage({
                 </Button>
                 <Button
                   size="small"
-                  loading={!continueAd.isAdLoaded}
-                  disabled={!continueAd.isSupported || !adCap.canWatch}
+                  loading={continueAd.isLoading}
+                  disabled={
+                    !continueAd.isSupported ||
+                    !adCap.canWatch ||
+                    !continueAd.isAdLoaded
+                  }
                   onClick={handleContinueAd}
                 >
                   {t("puzzle.watchAdContinue")}

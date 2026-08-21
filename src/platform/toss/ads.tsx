@@ -16,12 +16,14 @@ export function useInAppAds(adGroupId: string): InAppAdsApi {
   const toast = useToast();
 
   const [isAdLoaded, setIsAdLoaded] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [lastReward, setLastReward] = useState<Reward | null>(null);
   const [isSupported, setIsSupported] = useState(false);
   const unregisterRef = useRef<(() => void) | null>(null);
 
   const load = useCallback(() => {
     setIsAdLoaded(false);
+    setIsLoading(true);
 
     try {
       unregisterRef.current = loadFullScreenAd({
@@ -29,15 +31,18 @@ export function useInAppAds(adGroupId: string): InAppAdsApi {
         onEvent: (event) => {
           if (event.type === "loaded") {
             setIsAdLoaded(true);
+            setIsLoading(false);
           }
         },
         onError: (error) => {
           console.error("광고 로드 실패:", error);
+          setIsLoading(false);
         },
       });
     } catch (error) {
       console.error("광고 로드 실패:", error);
       setIsAdLoaded(false);
+      setIsLoading(false);
     }
   }, [adGroupId]);
 
@@ -116,7 +121,7 @@ export function useInAppAds(adGroupId: string): InAppAdsApi {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adGroupId, isAdLoaded, isSupported, load]);
 
-  return { isAdLoaded, isSupported, showAd, lastReward };
+  return { isAdLoaded, isSupported, showAd, lastReward, isLoading };
 }
 
 // 참고문서: https://developers-apps-in-toss.toss.im/documentation/common/monetization/iaa/web-banner.md
