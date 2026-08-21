@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import { itemDef, ITEM_ILLUSTRATIONS, ITEM_POOL, PULL_COST } from "../game/items";
 import type { ItemType } from "../game/items";
@@ -35,6 +36,7 @@ export function GachaPage({
   onDismissReveal,
   onContinue,
 }: GachaPageProps) {
+  const { t } = useTranslation();
   const [segment, setSegment] = useState<Segment>("gacha");
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -76,7 +78,7 @@ export function GachaPage({
         }}
       >
         <h1 style={{ fontSize: "22px", fontWeight: 700, color: colors.inkPrimary }}>
-          뽑기
+          {t("gacha.pull")}
         </h1>
         <div
           style={{
@@ -123,7 +125,7 @@ export function GachaPage({
               color: segment === seg ? colors.surfaceRaised : colors.inkSecondary,
             }}
           >
-            {seg === "gacha" ? "뽑기" : "인벤토리"}
+            {seg === "gacha" ? t("gacha.pull") : t("gacha.inventory")}
           </button>
         ))}
       </div>
@@ -163,9 +165,7 @@ export function GachaPage({
               lineHeight: 1.5,
             }}
           >
-            재화 {PULL_COST}개로 기능성 아이템을
-            <br />
-            하나 뽑을 수 있어요
+            {t("gacha.pullHint", { cost: PULL_COST })}
           </div>
           <button
             onClick={onPull}
@@ -181,7 +181,7 @@ export function GachaPage({
               cursor: "pointer",
             }}
           >
-            뽑기
+            {t("gacha.pull")}
           </button>
           <button
             onClick={onPullAd}
@@ -196,7 +196,7 @@ export function GachaPage({
               opacity: !pullAdSupported || !adCapCanWatch ? 0.4 : 1,
             }}
           >
-            {pullAdLoaded ? "광고 보고 무료로 뽑기" : "광고 준비 중..."}
+            {pullAdLoaded ? t("gacha.pullFree") : t("gacha.adLoading")}
           </button>
         </div>
       ) : totalItems === 0 ? (
@@ -214,9 +214,9 @@ export function GachaPage({
         >
           <div style={{ fontSize: "48px" }}>🎒</div>
           <div style={{ fontSize: "15px", color: colors.inkSecondary, lineHeight: 1.5 }}>
-            아직 보유한 아이템이 없어요
+            {t("gacha.emptyTitle")}
             <br />
-            뽑기로 얻어볼까요?
+            {t("gacha.emptyHint")}
           </div>
           <button
             onClick={() => setSegment("gacha")}
@@ -232,7 +232,7 @@ export function GachaPage({
               cursor: "pointer",
             }}
           >
-            뽑기 하러 가기
+            {t("gacha.goPull")}
           </button>
         </div>
       ) : (
@@ -283,10 +283,10 @@ export function GachaPage({
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: "15px", fontWeight: 700, color: colors.inkPrimary }}>
-                    {item.label}
+                    {t(item.labelKey)}
                   </div>
                   <div style={{ fontSize: "12px", color: colors.inkSecondary, marginTop: "2px" }}>
-                    {item.description}
+                    {t(item.descriptionKey)}
                   </div>
                 </div>
                 <div style={{ fontSize: "13px", fontWeight: 700, color: colors.accent }}>
@@ -319,7 +319,7 @@ export function GachaPage({
             cursor: "pointer",
           }}
         >
-          다음 스테이지 시작하기
+          {t("gacha.startNextStage")}
         </button>
       </div>
 
@@ -340,7 +340,7 @@ export function GachaPage({
             cursor: "pointer",
           }}
         >
-          아이템은 여기 인벤토리에서 다음 스테이지를 시작하기 전에 미리 쓸 수 있어요.
+          {t("gacha.inventoryHint")}
         </div>
       )}
 
@@ -368,7 +368,7 @@ export function GachaPage({
               {ITEM_ILLUSTRATIONS[revealedItem]}
             </div>
             <div style={{ fontSize: "20px", fontWeight: 700, color: colors.inkPrimary, marginBottom: "4px" }}>
-              {itemDef(revealedItem).label}
+              {t(itemDef(revealedItem).labelKey)}
             </div>
             <div
               style={{
@@ -378,7 +378,7 @@ export function GachaPage({
                 lineHeight: 1.5,
               }}
             >
-              {itemDef(revealedItem).description}
+              {t(itemDef(revealedItem).descriptionKey)}
             </div>
             <button
               onClick={() => {
@@ -397,7 +397,7 @@ export function GachaPage({
                 cursor: "pointer",
               }}
             >
-              인벤토리에서 확인하기
+              {t("gacha.checkInventory")}
             </button>
           </div>
         </div>

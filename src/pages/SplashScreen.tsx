@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { colors } from "../theme";
 
@@ -10,6 +11,7 @@ interface SplashScreenProps {
 }
 
 export function SplashScreen({ onFinished }: SplashScreenProps) {
+  const { t } = useTranslation();
   const [fadingOut, setFadingOut] = useState(false);
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
           letterSpacing: "-0.2px",
         }}
       >
-        틀리면 끝, 동물찾기
+        {t("splash.title")}
       </div>
       <div
         style={{
@@ -72,7 +74,7 @@ export function SplashScreen({ onFinished }: SplashScreenProps) {
           marginBottom: "56px",
         }}
       >
-        맞추는 즐거움
+        {t("splash.tagline")}
       </div>
       <div
         style={{
