@@ -6,6 +6,8 @@ import { createRoot } from "react-dom/client";
 import { PlatformProvider } from "@platform";
 
 import App from "./App.tsx";
+// i18n 부트스트랩 — 첫 렌더 전에 초기화돼야 하므로 App 보다 먼저 import한다.
+import "./i18n";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(

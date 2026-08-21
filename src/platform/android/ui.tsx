@@ -9,6 +9,8 @@ import {
 } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
+import { useTranslation } from "react-i18next";
+
 import { colors, radius } from "../../theme";
 
 // [NEW 2026-08-21] TDS 대체 경량 구현 (리스크 ④).
@@ -98,6 +100,7 @@ const TOAST_DURATION_MS = 2200;
 
 /** 앱 루트를 감싸는 플랫폼 Provider. toast/dialog 오버레이 호스트 역할을 한다. */
 export function PlatformProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [alertOptions, setAlertOptions] = useState<AlertOptions | null>(null);
 
@@ -194,7 +197,7 @@ export function PlatformProvider({ children }: { children: ReactNode }) {
             )}
             <div style={{ marginTop: "20px" }}>
               <Button onClick={() => setAlertOptions(null)} style={{ width: "100%" }}>
-                확인
+                {t("common.confirm")}
               </Button>
             </div>
           </div>

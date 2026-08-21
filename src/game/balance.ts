@@ -48,12 +48,15 @@ export function initialSecondsForStage(stage: number): number {
 export const DISGUISES = ["🕶️", "🎩", "🎀", "👑"] as const;
 export type Disguise = (typeof DISGUISES)[number];
 
-/** 스크린리더용 이름 — 이모지 그대로 읽히면 무엇을 쓴 건지 전달되지 않는다. */
-export const DISGUISE_LABELS: Record<Disguise, string> = {
-  "🕶️": "선글라스",
-  "🎩": "모자",
-  "🎀": "리본",
-  "👑": "왕관",
+/**
+ * 스크린리더용 이름의 i18n 키 — 이모지 그대로 읽히면 무엇을 쓴 건지 전달되지 않는다.
+ * [UPDATED 2026-08-21] 리터럴 → 키. 표시 문자열은 호출부가 t()로 푼다.
+ */
+export const DISGUISE_LABEL_KEYS: Record<Disguise, string> = {
+  "🕶️": "disguises.sunglasses",
+  "🎩": "disguises.hat",
+  "🎀": "disguises.ribbon",
+  "👑": "disguises.crown",
 };
 
 // 실루엣이 비슷한 것끼리 묶은 그룹. 풀을 좁히면 서로 헷갈리는 아이콘만 남아 난이도가 오른다.

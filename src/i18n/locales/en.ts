@@ -1,0 +1,92 @@
+// [NEW 2026-08-21] 영어 리소스 = fallback 언어.
+// ko.ts와 키 집합이 정확히 일치해야 한다(완료조건 6).
+export const en = {
+  common: {
+    confirm: "OK",
+    ad: "Ad",
+  },
+  splash: {
+    title: "One Miss, Game Over",
+    tagline: "The joy of matching",
+  },
+  puzzle: {
+    title: "One Miss, Game Over",
+    stage: "Stage {{stage}}",
+    timeBoostApplied: "Time boost applied — {{base}}s → <1>{{total}}s</1>",
+    shieldRemaining: "Miss shield <1>×{{count}}</1> left",
+    runOver: "Run over",
+    stageCleared: "Stage {{stage}} cleared · {{score}} pts",
+    newRecord: "New personal best!",
+    bestRecord: "Your best is stage {{stage}}.",
+    keepsBelongings: "Your coins and items are kept.",
+    share: "Share",
+    ranking: "Leaderboard",
+    retryRun: "Try again",
+    timeUp: "Time's up!",
+    retriesUsed: "Free retries used this run: {{used}}/{{max}}",
+    freeRetry: "Free retry",
+    watchAdContinue: "Watch ad to continue",
+    clearTitle: "Stage cleared!",
+    clearReward: "You earned {{reward}} coins.",
+    nextStage: "Next stage",
+    goToGacha: "Open gacha 🎁",
+    adCapTitle: "You've used all of today's ad views",
+    adCapDescription: "Please try again tomorrow.",
+    shareMessage:
+      "{{icon}} [One Miss, Game Over] Reflex rank: {{tier}}! I cleared up to stage {{stage}}. Wanna try?",
+    a11yTimeUp: "Time's up. You failed this stage.",
+    a11yTimeLow: "Not much time left.",
+    a11yHiddenTile: "Hidden tile",
+    a11yAnimal: "Animal",
+    a11yAnimalDisguised: "Animal wearing {{disguise}}",
+  },
+  gacha: {
+    pull: "Pull",
+    inventory: "Inventory",
+    pullHint: "Spend {{cost}} coins to pull one utility item",
+    pullFree: "Watch an ad to pull for free",
+    adLoading: "Loading ad...",
+    emptyTitle: "You don't have any items yet",
+    emptyHint: "Try pulling for some?",
+    goPull: "Go pull",
+    startNextStage: "Start next stage",
+    inventoryHint:
+      "You can use items here in the inventory before starting the next stage.",
+    checkInventory: "Check inventory",
+  },
+  toast: {
+    notEnoughCurrency: "Not enough coins. A pull costs {{cost}}.",
+    adCapReached: "You've used all of today's ad views. Please try again tomorrow.",
+    doubleRewardAlready: "Double coins is already active for the next stage.",
+    timeBoostReady:
+      "Next stage gets {{seconds}}s more time! ({{count}} stacked)",
+    shieldReady: "{{count}} miss shield(s) ready. Each miss uses one.",
+    doubleRewardReady: "Next stage clear reward will be doubled.",
+    pullSuccess: "Pulled: got {{item}}!",
+    adReward: "Reward earned: {{unitType}} ×{{amount}}",
+  },
+  items: {
+    timeBoost: { label: "Time Boost", description: "+5s on the next stage timer" },
+    mismatchShield: {
+      label: "Miss Shield",
+      description: "No penalty for your next miss",
+    },
+    doubleReward: {
+      label: "Double Coins",
+      description: "Double coins when you clear the next stage",
+    },
+  },
+  tiers: {
+    cheetah: "Cheetah",
+    fox: "Fox",
+    deer: "Deer",
+    hippo: "Hippo",
+    sloth: "Sloth",
+  },
+  disguises: {
+    sunglasses: "sunglasses",
+    hat: "a hat",
+    ribbon: "a ribbon",
+    crown: "a crown",
+  },
+} as const;
