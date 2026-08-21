@@ -16,7 +16,15 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+
+    // [NEW 2026-08-21] vite.config.ts 의 @platform alias와 짝을 이룬다.
+    // 타입 체크는 기본 빌드(toss) 구현 기준으로 한다 — 양쪽이 같은 인터페이스를
+    // 만족하는지는 PLATFORM=android 빌드가 검증한다.
+    "baseUrl": ".",
+    "paths": {
+      "@platform": ["./src/platform/toss/index.ts"]
+    }
   },
   "include": ["src"]
 }

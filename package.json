@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "granite dev",
     "build": "ait build",
+    "build:toss": "PLATFORM=toss vite build --outDir dist-toss",
+    "build:android": "PLATFORM=android vite build --outDir dist-android",
     "deploy": "ait deploy",
     "lint": "eslint .",
     "format": "prettier --write ."
