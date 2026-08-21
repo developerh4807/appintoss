@@ -33,6 +33,15 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- [NEW 2026-08-21] AdMob 앱 ID. 이 meta-data가 없으면 앱이 시작하자마자
+             크래시한다(SDK가 강제한다). 지금은 구글 공식 "테스트 앱 ID"이며,
+             출시 전 AdMob 콘솔에서 발급한 실제 앱 ID로 교체해야 한다
+             (docs/plans/android-port.md 7️⃣-2, src/platform/android/adIds.ts 참고). -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="ca-app-pub-3940256099942544~3347511713" />
+
     </application>
 
     <!-- Permissions -->

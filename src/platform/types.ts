@@ -17,6 +17,12 @@ export interface InAppAdsApi {
   isSupported: boolean;
   showAd: () => void;
   lastReward: Reward | null;
+  /**
+   * 로드를 시도하는 중인지. isAdLoaded=false 하나로는 "아직 로딩 중"과
+   * "로드에 실패함"이 구분되지 않아, 실패했는데도 버튼이 영원히 로딩 표시에
+   * 머무는 문제가 생긴다(에뮬레이터 실측에서 확인).
+   */
+  isLoading: boolean;
 }
 
 /** 배너 부착 결과. destroy()로 정리한다. */

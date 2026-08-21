@@ -232,6 +232,7 @@ export function GameShell() {
           onPullAd={handlePullAd}
           pullAdLoaded={pullAd.isAdLoaded}
           pullAdSupported={pullAd.isSupported}
+          pullAdLoading={pullAd.isLoading}
           adCapCanWatch={adCap.canWatch}
           onUseItem={handleUseItem}
           revealedItem={revealedItem}
