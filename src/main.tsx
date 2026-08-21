@@ -1,15 +1,17 @@
-import { TDSMobileAITProvider } from "@toss/tds-mobile-ait";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import config from "../granite.config.ts";
+// [UPDATED 2026-08-21] TDS Provider를 플랫폼 어댑터 뒤로 옮겼다.
+// 토스는 TDSMobileAITProvider, Android는 toast/dialog 오버레이 호스트가 된다.
+import { PlatformProvider } from "@platform";
+
 import App from "./App.tsx";
 import "./index.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <TDSMobileAITProvider brandPrimaryColor={config.brand.primaryColor}>
+    <PlatformProvider>
       <App />
-    </TDSMobileAITProvider>
+    </PlatformProvider>
   </StrictMode>,
 );
