@@ -45,6 +45,11 @@ export function GameShell() {
   const [shieldCharges, setShieldCharges] = useState(0);
   const [doubleRewardActive, setDoubleRewardActive] = useState(false);
   const [timeBoostCharges, setTimeBoostCharges] = useState(0);
+  // [FIX 2026-08-28] 런 세대 카운터. 런 리셋은 스테이지를 1로 되돌리지만, 스테이지 1에서
+  // 끝난 런은 1 → 1이라 stage가 바뀌지 않는다 — PuzzlePage의 리셋 effect가 stage에만
+  // 걸려 있어 실패한 보드·만료된 타이머가 그대로 남았다. 이 값을 함께 올려 "스테이지가
+  // 바뀐 것과 똑같이" 새 판을 깔게 한다(retryGen이 재시도에 하는 역할의 런 단위 버전).
+  const [runGen, setRunGen] = useState(0);
   const [revealedItem, setRevealedItem] = useState<ItemType | null>(null);
   const toast = useToast();
   const pullAd = useInAppAds(PULL_AD_ID);
@@ -168,6 +173,9 @@ export function GameShell() {
     void submitScore(scoreForRun(runState.bestStage));
 
     resetStage();
+    // 스테이지 1에서 끝난 런은 resetStage()로 stage 값이 바뀌지 않는다 — 세대를 올려야
+    // PuzzlePage가 깨끗한 1스테이지(새 보드·타이머 리셋)로 다시 시작한다.
+    setRunGen((g) => g + 1);
     runState.resetRun();
     // 아이템 효과는 런에 딸린 일시 상태라 함께 정리한다 — 실패한 런에서 쌓아둔 방패
     // 스택이 새 런 1스테이지로 넘어가면 안 된다.
@@ -219,6 +227,7 @@ export function GameShell() {
           onConsumeDoubleReward={() => setDoubleRewardActive(false)}
           adCap={adCap}
           runState={runState}
+          runGen={runGen}
           onRunReset={handleRunReset}
           stageSeconds={stageSeconds}
           timeBoostCharges={timeBoostCharges}

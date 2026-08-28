@@ -73,6 +73,12 @@ interface PuzzlePageProps {
   onConsumeDoubleReward: () => void;
   adCap: { canWatch: boolean; recordWatch: () => void };
   runState: RunState;
+  /**
+   * 런이 리셋될 때마다 증가하는 세대. 스테이지 1에서 끝난 런은 리셋해도 stage가 1 → 1이라
+   * 바뀌지 않아, stage에만 걸린 리셋 effect가 돌지 않고 실패한 판이 그대로 남았다.
+   * [FIX 2026-08-28] 아래 리셋 effect가 이 값도 함께 보고 새 판을 깐다.
+   */
+  runGen: number;
   onRunReset: () => void;
   /** 이번 스테이지의 실제 제한시간(시간 회복 보너스 포함). 게이지·임계 판정의 기준이다. */
   stageSeconds: number;
@@ -94,6 +100,7 @@ export function PuzzlePage({
   onConsumeDoubleReward,
   adCap,
   runState,
+  runGen,
   onRunReset,
   stageSeconds,
   timeBoostCharges,
@@ -168,6 +175,9 @@ export function PuzzlePage({
   // ('다시 도전' 버튼을 없앤 대신, 갇히지 않도록 여기서 자동으로 결과 카드를 띄운다.)
   const runIsOver = !runState.canRetry && adContinueUnavailable;
 
+  // 새 스테이지로 넘어갈 때(stage)와 런이 리셋될 때(runGen) 모두 여기서 새 판을 깐다.
+  // runGen이 deps에 있어야 스테이지 1에서 끝난 런도 깨끗하게 다시 시작된다 — 그 경우
+  // stage는 1 → 1로 그대로라 stage만 보면 이 effect가 돌지 않는다.
   useEffect(() => {
     // 새 스테이지는 세대 0부터 시작한다 — 보드 id의 세대와 숨김 리셋 토큰을 함께 되돌린다.
     setRetryGen(0);
@@ -191,7 +201,7 @@ export function PuzzlePage({
     // 스테이지에 계속 적용된다. 쌓아뒀던 스택은 이 한 번의 적용으로 전부 소진된다.
     if (timeBoostCharges > 0) onConsumeTimeBoost();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stage]);
+  }, [stage, runGen]);
 
   useEffect(() => {
     if (selected.length < 2) return;
