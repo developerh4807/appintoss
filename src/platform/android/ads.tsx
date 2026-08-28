@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { BannerApi, BannerHandle, InAppAdsApi, Reward } from "../types";
-import { TEST_AD_IDS, USE_TEST_ADS } from "./adIds";
+import { AD_IDS, USE_TEST_ADS } from "./adIds";
 import { ensureAdMobInitialized } from "./admob";
 import { useToast } from "./ui";
 
@@ -25,7 +25,7 @@ import { useToast } from "./ui";
 /** 토스 광고그룹ID → AdMob 광고 단위 ID. 실 ID 교체는 adIds.ts 한 곳만 고치면 된다. */
 function resolveRewardedAdId(_tossAdGroupId: string): string {
   void _tossAdGroupId;
-  return TEST_AD_IDS.rewarded;
+  return AD_IDS.rewarded;
 }
 
 // [NEW 2026-08-21] AdMob 보상형은 **전역 슬롯이 하나**다. 토스와 달리 광고그룹별로
@@ -226,7 +226,7 @@ export function useBanner(): BannerApi {
       if (!isInitialized) return undefined;
 
       void AdMob.showBanner({
-        adId: TEST_AD_IDS.banner,
+        adId: AD_IDS.banner,
         adSize: BannerAdSize.ADAPTIVE_BANNER,
         position: BannerAdPosition.BOTTOM_CENTER,
         isTesting: USE_TEST_ADS,

@@ -34,3 +34,10 @@ android/local.properties
 android/app/src/main/assets/public/
 android/app/src/main/assets/capacitor.config.json
 android/capacitor-cordova-android-plugins/
+
+# 서명 자산 — 절대 커밋 금지 (public repo). 분실 시 앱 업데이트 영구 불가
+*.keystore
+*.jks
+android/keystore.properties
+release.keystore
+upload-keystore.jks

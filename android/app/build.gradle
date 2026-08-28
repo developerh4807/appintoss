@@ -1,5 +1,15 @@
 apply plugin: 'com.android.application'
 
+// [NEW 2026-08-28] AdMob 앱 ID를 소스에 커밋하지 않는다 — local.properties(gitignore)에서 읽는다.
+//   android/local.properties 에 `admobAppId=ca-app-pub-<실ID>~<...>` 를 넣으면 릴리스에 반영된다.
+//   없으면 구글 공식 테스트 앱 ID로 폴백한다(디버그·RTL 실기기 검증용).
+def localProps = new Properties()
+def localPropsFile = rootProject.file("local.properties")
+if (localPropsFile.exists()) {
+    localPropsFile.withInputStream { localProps.load(it) }
+}
+def admobAppId = localProps.getProperty("admobAppId", "ca-app-pub-3940256099942544~3347511713")
+
 android {
     namespace = "im.appintoss.matchingking"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -9,6 +19,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        // AndroidManifest 의 ${admobAppId} 를 채운다(위 로더 참고).
+        manifestPlaceholders = [admobAppId: admobAppId]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
