@@ -25,10 +25,14 @@ if (hasKeystore) {
 }
 
 android {
+    // namespace(R/BuildConfig 패키지)는 그대로 두고 applicationId만 바꾼다 — 최소 수정.
+    // MainActivity.java 위치(im/appintoss/matchingking)와 namespace가 일치하면 된다.
     namespace = "im.appintoss.matchingking"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "im.appintoss.matchingking"
+        // Play Console에 등록된 패키지 이름(앱 생성 후 변경 불가). FileProvider authority도
+        // ${applicationId}.fileprovider 로 따라간다.
+        applicationId "com.freefromjob.matchingking"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

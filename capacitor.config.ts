@@ -6,7 +6,8 @@ import type { CapacitorConfig } from "@capacitor/cli";
 // 앱인토스 SDK가 그대로 들어가 격리가 무의미해진다.
 // 반드시 `npm run build:android` 로 만든 산출물을 감싼다.
 const config: CapacitorConfig = {
-  appId: "im.appintoss.matchingking",
+  // Play Console에 등록된 패키지 이름과 일치해야 한다(앱 생성 후 변경 불가).
+  appId: "com.freefromjob.matchingking",
   appName: "One Miss, Game Over",
   webDir: "dist-android",
   android: {
