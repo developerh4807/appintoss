@@ -52,9 +52,11 @@ interface RunState {
   retriesUsed: number;
   maxRetries: number;
   canRetry: boolean;
+  canUseAdContinue: boolean;
   bestStage: number;
   bestStageAtRunStart: number;
   recordRetry: () => void;
+  recordAdContinue: () => void;
 }
 
 interface PuzzlePageProps {
@@ -98,8 +100,12 @@ export function PuzzlePage({
   onConsumeTimeBoost,
 }: PuzzlePageProps) {
   const { t } = useTranslation();
+  // [FIX 2026-08-28] 같은 스테이지에서 보드를 다시 까는 재시도(무료·광고)의 세대 카운터.
+  // 보드 생성·숨김 리셋이 이 값을 함께 참조해, 재시도 시 이전 판의 ?(숨김)가 남지 않게 한다.
+  // 다음 스테이지로 넘어가면(컴포넌트 재마운트·아래 stage effect) 0부터 다시 센다.
+  const [retryGen, setRetryGen] = useState(0);
   const [board, setBoard] = useState<Tile[]>(() =>
-    generateBoard(stage, boardOptionsForStage(stage)),
+    generateBoard(stage, boardOptionsForStage(stage), 0),
   );
   const [matchedIds, setMatchedIds] = useState<string[]>([]);
   const [selected, setSelected] = useState<Tile[]>([]);
@@ -138,6 +144,8 @@ export function PuzzlePage({
     timeLeft: timer.timeLeft,
     activeIds,
     isPaused: timer.isPaused || cleared || failed,
+    // 재시도로 보드를 다시 깔면 숨김도 처음부터 — stage는 그대로라 이 토큰이 필요하다.
+    resetToken: retryGen,
   });
   // 결과 카드는 전부 "클리어한" 스테이지 기준으로 말한다. 런이 끝나는 시점의 `stage`는
   // 실패한(=클리어 못 한) 스테이지라 그대로 쓰면 "도달 2 / 1,000점"처럼 표시가 어긋나고,
@@ -146,8 +154,24 @@ export function PuzzlePage({
   const isNewRecord = clearedStage > runState.bestStageAtRunStart;
   const tier = tierForStage(clearedStage);
 
+  // [FIX 2026-08-28] 광고 이어하기가 "지금 실제로 가능한가"를 한 곳에서 판정한다.
+  // 무료 재시도가 남아있으면(canRetry) 애초에 광고 단계가 아니다. 광고 단계에서도
+  // ▸ 이번 런에 이미 광고를 썼거나(런당 1회 — "무료 2회 + 광고 1회" 계약),
+  // ▸ 미지원·일일 상한·로드 실패(로딩이 끝났는데 아직 미로드)면 광고를 볼 방법이 없다.
+  // 로딩 중(isLoading)은 곧 뜰 수 있으므로 아직 불가로 치지 않고 기다린다.
+  const adContinueUnavailable =
+    !runState.canUseAdContinue ||
+    !continueAd.isSupported ||
+    !adCap.canWatch ||
+    (!continueAd.isAdLoaded && !continueAd.isLoading);
+  // 무료도 소진하고 광고도 볼 수 없으면 이번 런은 끝 — game over 결과 카드로 분기한다.
+  // ('다시 도전' 버튼을 없앤 대신, 갇히지 않도록 여기서 자동으로 결과 카드를 띄운다.)
+  const runIsOver = !runState.canRetry && adContinueUnavailable;
+
   useEffect(() => {
-    setBoard(generateBoard(stage, boardOptionsForStage(stage)));
+    // 새 스테이지는 세대 0부터 시작한다 — 보드 id의 세대와 숨김 리셋 토큰을 함께 되돌린다.
+    setRetryGen(0);
+    setBoard(generateBoard(stage, boardOptionsForStage(stage), 0));
     setMatchedIds([]);
     setSelected([]);
     setWrongIds([]);
@@ -259,13 +283,34 @@ export function PuzzlePage({
     ) {
       handledRewardRef.current = continueAd.lastReward;
       adCap.recordWatch();
-      failureAnnouncedRef.current = false;
-      thresholdAnnouncedRef.current = false;
-      setAnnouncement("");
-      timer.reset(activeStageSecondsRef.current);
+      // [FIX 2026-08-28] 광고 이어하기는 런당 1회 — 여기서 소진 처리한다. 이후 같은 런에서
+      // 다시 실패하면 canUseAdContinue=false라 runIsOver가 되어 game over로 넘어간다.
+      runState.recordAdContinue();
+      // 예전엔 여기서 timer.reset만 하고 보드는 그대로 뒀다 — 그래서 광고 이어하기 후에도
+      // 이전 판의 매치 진행·숨김(?)이 남아 사실상 풀 수 없는 판이 됐다. 무료 재시도와
+      // 똑같이 세대를 올려, 아래 재시도 effect가 보드를 새로 깔고 상태를 전부 리셋하게 한다.
+      setRetryGen((g) => g + 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continueAd.lastReward, stage]);
+
+  // [FIX 2026-08-28] 재시도(무료·광고) 공통 처리 — 세대(retryGen)가 오르면 여기서 보드를
+  // 새로 깔고 진행 상태를 전부 리셋한다. 두 경로가 각자 리셋하면 광고 쪽처럼 일부를
+  // 빠뜨리기 쉬워, "세대만 올리면 나머지는 한곳에서 처리"하는 단일 지점으로 모았다.
+  // retryGen === 0(최초/스테이지 전환)은 stage effect가 이미 처리하므로 건너뛴다.
+  useEffect(() => {
+    if (retryGen === 0) return;
+    setBoard(generateBoard(stage, boardOptionsForStage(stage), retryGen));
+    setMatchedIds([]);
+    setSelected([]);
+    setWrongIds([]);
+    setShowPenalty(false);
+    failureAnnouncedRef.current = false;
+    thresholdAnnouncedRef.current = false;
+    setAnnouncement("");
+    timer.reset(activeStageSecondsRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [retryGen]);
 
   const handleTap = (tile: Tile) => {
     if (failed || cleared) return;
@@ -284,14 +329,8 @@ export function PuzzlePage({
   const handleFreeRetry = () => {
     if (!runState.canRetry) return;
     runState.recordRetry();
-    setBoard(generateBoard(stage, boardOptionsForStage(stage)));
-    setMatchedIds([]);
-    setSelected([]);
-    setWrongIds([]);
-    failureAnnouncedRef.current = false;
-    thresholdAnnouncedRef.current = false;
-    setAnnouncement("");
-    timer.reset(activeStageSecondsRef.current);
+    // 세대만 올리면 위 재시도 effect가 보드 재생성·상태 리셋·타이머 리셋을 한곳에서 처리한다.
+    setRetryGen((g) => g + 1);
   };
 
   const handleShare = () => {
@@ -570,7 +609,7 @@ export function PuzzlePage({
             gap: "8px",
           }}
         >
-          {!runState.canRetry && (!continueAd.isSupported || !adCap.canWatch) ? (
+          {runIsOver ? (
             // 컨티뉴 수단을 모두 소진 — 오락실처럼 런이 끝나고 스테이지 1로 돌아간다.
             // 재화·아이템은 유지되므로 다음 런은 더 유리하게 시작할 수 있다.
             // [NEW 2026-08-11] FR-18 결과 카드 — 런이 끝나는 이 지점이 성과를 보여주고
@@ -643,8 +682,11 @@ export function PuzzlePage({
                     {t("puzzle.ranking")}
                   </Button>
                 )}
+                {/* [FIX 2026-08-28] '다시 도전' → '확인'. 이 카드가 곧 game over이므로,
+                    누르면 새 런(스테이지 1)으로 초기화된다. 재도전을 유도하는 문구가
+                    아니라 결과를 확인하고 넘어가는 액션이다. */}
                 <Button size="small" onClick={onRunReset}>
-                  {t("puzzle.retryRun")}
+                  {t("common.confirm")}
                 </Button>
               </div>
             </>
@@ -659,27 +701,26 @@ export function PuzzlePage({
                   max: runState.maxRetries,
                 })}
               </div>
+              {/* [FIX 2026-08-28] 단계적으로 노출한다 — ①무료 재시도가 남으면 그 버튼만,
+                  ②소진되면 광고 이어하기 버튼만. '다시 도전'(런 리셋) 버튼은 제거했다:
+                  무료·광고를 모두 못 쓰는 상황(상한·미지원·로드 실패)은 위 runIsOver 분기가
+                  받아 game over 결과 카드로 자동 전환하므로, 여기서 갇힐 일이 없다.
+                  이 카드에 도달했다는 건 광고를 볼 수 있거나(로드됨) 곧 볼 수 있다(로딩 중)는 뜻. */}
               <div style={{ display: "flex", gap: "8px" }}>
-                <Button
-                  size="small"
-                  variant="weak"
-                  disabled={!runState.canRetry}
-                  onClick={handleFreeRetry}
-                >
-                  {t("puzzle.freeRetry")}
-                </Button>
-                <Button
-                  size="small"
-                  loading={continueAd.isLoading}
-                  disabled={
-                    !continueAd.isSupported ||
-                    !adCap.canWatch ||
-                    !continueAd.isAdLoaded
-                  }
-                  onClick={handleContinueAd}
-                >
-                  {t("puzzle.watchAdContinue")}
-                </Button>
+                {runState.canRetry ? (
+                  <Button size="small" variant="weak" onClick={handleFreeRetry}>
+                    {t("puzzle.freeRetry")}
+                  </Button>
+                ) : (
+                  <Button
+                    size="small"
+                    loading={continueAd.isLoading}
+                    disabled={!continueAd.isAdLoaded}
+                    onClick={handleContinueAd}
+                  >
+                    {t("puzzle.watchAdContinue")}
+                  </Button>
+                )}
               </div>
             </>
           )}

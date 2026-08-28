@@ -56,8 +56,16 @@ interface BoardOptions {
  * 각 쌍은 **(아이콘, 변장) 조합이 유일**해야 한다 — 같은 조합이 두 쌍 생기면 네 장이
  * 서로 매치돼 퍼즐이 깨진다. 그래서 조합 공간(풀 × 변장종수)이 필요한 쌍 수보다
  * 작으면 즉시 드러나도록 가드를 둔다. 구간표를 나중에 손댈 때 조용히 깨지는 걸 막는다.
+ *
+ * `generation`은 같은 스테이지에서 보드를 다시 깔 때(재시도) 증가하는 값이다.
+ * [FIX 2026-08-28] 타일 id에 세대를 섞어, 이전 판에 딸린 숨김/선택 상태가 id가
+ * 같다는 이유만으로 새 보드에 그대로 들러붙는 걸 막는다(기본 0 → 기존 동작 유지).
  */
-export function generateBoard(stage: number, options: BoardOptions): Tile[] {
+export function generateBoard(
+  stage: number,
+  options: BoardOptions,
+  generation = 0,
+): Tile[] {
   const { iconPool, disguiseCount } = options;
   const pairCount = tilesForStage(stage) / 2;
   const combinationSpace = iconPool.length * Math.max(1, disguiseCount);
@@ -96,7 +104,7 @@ export function generateBoard(stage: number, options: BoardOptions): Tile[] {
   const shuffled = shuffle([...combos, ...combos]);
 
   return shuffled.map((combo, index) => ({
-    id: `${stage}-${index}`,
+    id: `${stage}-${generation}-${index}`,
     icon: combo.icon,
     disguise: combo.disguise,
   }));

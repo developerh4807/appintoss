@@ -28,6 +28,13 @@ interface UseHideScheduleParams {
   activeIds: string[];
   /** 정지 중이면 스케줄도 멈춘다(백그라운드·클리어·실패). */
   isPaused: boolean;
+  /**
+   * 같은 스테이지 안에서 보드가 새로 깔릴 때(무료 재시도·광고 이어하기) 증가하는 값.
+   * [FIX 2026-08-28] 재시도는 stage를 바꾸지 않아 stage-only 리셋으로는 숨김이 남는다 —
+   * 이전 판에서 숨겨둔 타일이 새 보드에 그대로 ?로 찍혀 "무조건 틀리는" 판이 됐다.
+   * 이 토큰이 바뀌면 stage가 바뀔 때와 똑같이 처음부터 다시 시작한다.
+   */
+  resetToken: number;
 }
 
 /**
@@ -47,16 +54,18 @@ export function useHideSchedule({
   timeLeft,
   activeIds,
   isPaused,
+  resetToken,
 }: UseHideScheduleParams): string[] {
   const [hiddenIds, setHiddenIds] = useState<string[]>([]);
   // 최신 값을 effect 안에서 읽기 위한 미러 — deps에 넣으면 매 매치마다 재실행된다.
   const activeIdsRef = useRef(activeIds);
   activeIdsRef.current = activeIds;
 
-  // 스테이지가 바뀌면 처음부터 다시 시작한다.
+  // 스테이지가 바뀌거나(다음 스테이지) 같은 스테이지에서 보드가 새로 깔리면(재시도)
+  // 숨김을 처음부터 다시 시작한다.
   useEffect(() => {
     setHiddenIds([]);
-  }, [stage]);
+  }, [stage, resetToken]);
 
   useEffect(() => {
     if (!enabled || isPaused) return;

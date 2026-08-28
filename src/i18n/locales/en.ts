@@ -22,7 +22,6 @@ export const en = {
     keepsBelongings: "Your coins and items are kept.",
     share: "Share",
     ranking: "Leaderboard",
-    retryRun: "Try again",
     timeUp: "Time's up!",
     retriesUsed: "Free retries used this run: {{used}}/{{max}}",
     freeRetry: "Free retry",

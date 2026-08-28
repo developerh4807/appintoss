@@ -22,7 +22,6 @@ export const ko = {
     keepsBelongings: "모아둔 재화와 아이템은 그대로 남아 있어요.",
     share: "공유하기",
     ranking: "랭킹 보기",
-    retryRun: "다시 도전",
     timeUp: "시간이 다 됐어요!",
     retriesUsed: "이번 런 무료 재시도 {{used}}/{{max}}회 사용",
     freeRetry: "무료로 재시도",
