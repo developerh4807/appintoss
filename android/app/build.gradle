@@ -10,6 +10,20 @@ if (localPropsFile.exists()) {
 }
 def admobAppId = localProps.getProperty("admobAppId", "ca-app-pub-3940256099942544~3347511713")
 
+// [NEW 2026-08-28] 릴리스 서명. keystore.properties(gitignore)가 있으면 서명하고,
+//   없으면 signingConfig를 만들지 않는다(디버그·CI 검증 시 unsigned로 진행 — 빌드는 성공).
+//   android/keystore.properties 예시:
+//     storeFile=../upload-keystore.jks
+//     storePassword=...
+//     keyAlias=upload
+//     keyPassword=...
+def keystorePropsFile = rootProject.file("keystore.properties")
+def keystoreProps = new Properties()
+def hasKeystore = keystorePropsFile.exists()
+if (hasKeystore) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
     namespace = "im.appintoss.matchingking"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -28,10 +42,24 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasKeystore) {
+            release {
+                storeFile rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword keystoreProps.getProperty("storePassword")
+                keyAlias keystoreProps.getProperty("keyAlias")
+                keyPassword keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // keystore.properties가 있을 때만 서명한다. 없으면 unsigned 릴리스(빌드는 성공).
+            if (hasKeystore) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }
