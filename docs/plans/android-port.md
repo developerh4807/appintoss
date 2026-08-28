@@ -178,7 +178,7 @@ Play 심사에 사운드 요건은 없다. `2026-08-18_play스토어-게임-poc-
 | **Java** | ⚠️ 기본 `java`가 **22**. Capacitor/AGP는 **21 권장** |
 
 > ⚠️ **`JAVA_HOME`을 Corretto 21로 고정할 것.**
-> `/Users/jeongwoohyuk/Library/Java/JavaVirtualMachines/corretto-21.0.3/Contents/Home`
+> `~/Library/Java/JavaVirtualMachines/corretto-21.0.3/Contents/Home`
 > Java 22는 Gradle 호환 문제가 흔하다. 빌드 실패 시 **가장 먼저 의심할 지점**이다.
 
 ---
