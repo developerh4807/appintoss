@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- 영문 로케일 기기의 런처 라벨. Play Console en-US 등록정보의 앱 이름과
+     글자 그대로 일치시킬 것("One Miss, Game Over"). 기본(한국어) 라벨은 values/. -->
+<resources>
+    <string name="app_name">One Miss, Game Over</string>
+    <string name="title_activity_main">One Miss, Game Over</string>
+</resources>
