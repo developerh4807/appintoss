@@ -9,8 +9,8 @@ const config: CapacitorConfig = {
   // Play Console에 등록된 패키지 이름과 일치해야 한다(앱 생성 후 변경 불가).
   appId: "com.freefromjob.matchingking",
   // 이 값이 `cap sync` 시 values/strings.xml(기본 라벨)을 덮어쓴다 —
-  // Play 기본 등록정보(한국어)의 앱 이름과 일치해야 한다. 영문은 values-en.
-  appName: "틀리면 끝, 동물찾기",
+  // Play 기본 등록정보 언어(영어)의 앱 이름과 일치해야 한다. 한국어는 values-ko.
+  appName: "One Miss, Game Over",
   webDir: "dist-android",
   android: {
     // 웹뷰가 자체 배경을 그리기 전 잠깐 보이는 색 — surfaceBase(#FFF8EC)와 맞춰
