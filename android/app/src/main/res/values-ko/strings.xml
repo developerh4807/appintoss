@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<!-- [NEW 2026-08-21] 한국어 기기의 런처 아이콘 이름. 앱 안 UI는 i18n이 처리하지만
-     런처 라벨은 안드로이드 리소스라 별도로 둔다. -->
-<resources>
-    <string name="app_name">틀리면 끝, 동물찾기</string>
-    <string name="title_activity_main">틀리면 끝, 동물찾기</string>
-</resources>

@@ -35,8 +35,8 @@ android {
         applicationId "com.freefromjob.matchingking"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.0.1"
         // AndroidManifest 의 ${admobAppId} 를 채운다(위 로더 참고).
         manifestPlaceholders = [admobAppId: admobAppId]
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
