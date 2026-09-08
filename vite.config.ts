@@ -3,6 +3,8 @@ import { fileURLToPath, URL } from "node:url";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
+import aitDevtools from "@apps-in-toss/devtools/unplugin";
+
 // [NEW 2026-08-21] 플랫폼 어댑터 alias.
 //
 // `@platform`을 **빌드 타임 정적 해석**으로 한쪽에 확정한다. 런타임 if로 고르면
@@ -14,7 +16,7 @@ import { defineConfig } from "vite";
 const platform = process.env.PLATFORM === "android" ? "android" : "toss";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [aitDevtools.vite(), react()],
   resolve: {
     alias: {
       "@platform": fileURLToPath(

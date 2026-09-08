@@ -4,7 +4,7 @@ import { Button, useDialog, useToast } from "@toss/tds-mobile";
 import { TDSMobileAITProvider } from "@toss/tds-mobile-ait";
 import type { ReactNode } from "react";
 
-import config from "../../../granite.config.ts";
+import config from "../../../apps-in-toss.config.ts";
 
 // [MOVED 2026-08-21] TDS 컴포넌트를 어댑터 뒤로 감춘다. 토스 빌드는 TDS를 그대로 쓰고,
 // Android 빌드는 같은 이름의 경량 자체 구현을 제공한다(리스크 ④).
