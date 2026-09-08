@@ -4,8 +4,25 @@
     {
       "name": "android-web",
       "runtimeExecutable": "/usr/bin/env",
-      "runtimeArgs": ["PLATFORM=android", "npx", "vite", "--port", "5199"],
+      "runtimeArgs": [
+        "PLATFORM=android",
+        "npx",
+        "vite",
+        "--port",
+        "5199"
+      ],
       "port": 5199
+    },
+    {
+      "name": "toss-web",
+      "runtimeExecutable": "/usr/bin/env",
+      "runtimeArgs": [
+        "npx",
+        "vite",
+        "--port",
+        "5173"
+      ],
+      "port": 5173
     }
   ]
 }

@@ -44,8 +44,6 @@ export const en = {
     pull: "Pull",
     inventory: "Inventory",
     pullHint: "Spend {{cost}} coins to pull one utility item",
-    pullFree: "Watch an ad to pull for free",
-    adLoading: "Loading ad...",
     emptyTitle: "You don't have any items yet",
     emptyHint: "Try pulling for some?",
     goPull: "Go pull",
@@ -56,7 +54,6 @@ export const en = {
   },
   toast: {
     notEnoughCurrency: "Not enough coins. A pull costs {{cost}}.",
-    adCapReached: "You've used all of today's ad views. Please try again tomorrow.",
     doubleRewardAlready: "Double coins is already active for the next stage.",
     timeBoostReady:
       "Next stage gets {{seconds}}s more time! ({{count}} stacked)",

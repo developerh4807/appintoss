@@ -13,12 +13,6 @@ interface GachaPageProps {
   currency: number;
   items: Record<ItemType, number>;
   onPull: () => void;
-  onPullAd: () => void;
-  pullAdLoaded: boolean;
-  pullAdSupported: boolean;
-  /** 로드 시도 중인지 — 실패 상태와 구분해야 버튼이 영원히 "준비 중"에 머물지 않는다. */
-  pullAdLoading: boolean;
-  adCapCanWatch: boolean;
   onUseItem: (type: ItemType) => void;
   revealedItem: ItemType | null;
   onDismissReveal: () => void;
@@ -29,11 +23,6 @@ export function GachaPage({
   currency,
   items,
   onPull,
-  onPullAd,
-  pullAdLoaded,
-  pullAdSupported,
-  pullAdLoading,
-  adCapCanWatch,
   onUseItem,
   revealedItem,
   onDismissReveal,
@@ -185,24 +174,6 @@ export function GachaPage({
             }}
           >
             {t("gacha.pull")}
-          </button>
-          <button
-            onClick={onPullAd}
-            disabled={!pullAdSupported || !adCapCanWatch || !pullAdLoaded}
-            style={{
-              fontSize: "13px",
-              color: colors.inkSecondary,
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              textDecoration: "underline",
-              opacity:
-                !pullAdSupported || !adCapCanWatch || !pullAdLoaded ? 0.4 : 1,
-            }}
-          >
-            {/* 로딩 중이면 "준비 중", 실패했으면 원래 라벨을 비활성 상태로 보여준다 —
-                "준비 중"이 영원히 남으면 곧 될 것처럼 오해된다. */}
-            {pullAdLoading ? t("gacha.adLoading") : t("gacha.pullFree")}
           </button>
         </div>
       ) : totalItems === 0 ? (

@@ -11,7 +11,6 @@ import type { ItemType } from "../game/items";
 import { scoreForRun, submitScore } from "../game/leaderboard";
 import { useCurrency } from "../hooks/useCurrency";
 import { useDailyAdCap } from "../hooks/useDailyAdCap";
-import { useInAppAds } from "../hooks/useInAppAds";
 import { useRunState } from "../hooks/useRunState";
 import { useInventory } from "../hooks/useInventory";
 import { useOnlineStatus } from "../hooks/useOnlineStatus";
@@ -22,7 +21,6 @@ import { GachaPage } from "./GachaPage";
 import { PuzzlePage } from "./PuzzlePage";
 
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
-const PULL_AD_ID = "ait-ad-test-rewarded-id";
 const BANNER_AD_ID = "ait-ad-test-banner-id";
 
 type Screen = "puzzle" | "gacha";
@@ -52,7 +50,6 @@ export function GameShell() {
   const [runGen, setRunGen] = useState(0);
   const [revealedItem, setRevealedItem] = useState<ItemType | null>(null);
   const toast = useToast();
-  const pullAd = useInAppAds(PULL_AD_ID);
   const adCap = useDailyAdCap();
   const runState = useRunState();
   // 이번 스테이지의 실제 제한시간 — 시간 회복 아이템을 미리 썼으면 보너스가 얹힌다.
@@ -101,14 +98,6 @@ export function GameShell() {
     const rolled = rollItem();
     addItem(rolled);
     setRevealedItem(rolled);
-  };
-
-  const handlePullAd = () => {
-    if (!adCap.canWatch) {
-      toast.openToast(t("toast.adCapReached"));
-      return;
-    }
-    pullAd.showAd();
   };
 
   const handleUseItem = (type: ItemType) => {
@@ -238,11 +227,6 @@ export function GameShell() {
           currency={currency}
           items={items}
           onPull={handlePull}
-          onPullAd={handlePullAd}
-          pullAdLoaded={pullAd.isAdLoaded}
-          pullAdSupported={pullAd.isSupported}
-          pullAdLoading={pullAd.isLoading}
-          adCapCanWatch={adCap.canWatch}
           onUseItem={handleUseItem}
           revealedItem={revealedItem}
           onDismissReveal={() => {
