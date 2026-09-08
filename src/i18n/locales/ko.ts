@@ -45,8 +45,6 @@ export const ko = {
     pull: "뽑기",
     inventory: "인벤토리",
     pullHint: "재화 {{cost}}개로 기능성 아이템을 하나 뽑을 수 있어요",
-    pullFree: "광고 보고 무료로 뽑기",
-    adLoading: "광고 준비 중...",
     emptyTitle: "아직 보유한 아이템이 없어요",
     emptyHint: "뽑기로 얻어볼까요?",
     goPull: "뽑기 하러 가기",
@@ -57,7 +55,6 @@ export const ko = {
   },
   toast: {
     notEnoughCurrency: "재화가 부족해요. 뽑기에는 {{cost}}개가 필요해요.",
-    adCapReached: "오늘의 광고 시청 횟수를 모두 사용했어요. 내일 다시 시도해 주세요.",
     doubleRewardAlready: "이미 다음 스테이지에 재화 2배가 적용돼 있어요.",
     timeBoostReady:
       "다음 스테이지 제한시간이 {{seconds}}초 늘어나요! (누적 {{count}}개)",
