@@ -1,6 +1,7 @@
 // [NEW 2026-08-21] 토스 플랫폼 구현 barrel.
 // Vite alias가 `@platform` → 이 파일로 해석될 때만 @apps-in-toss/* 가 import 그래프에 들어간다.
 export { useInAppAds, useBanner } from "./ads";
+export { AD_GROUP_IDS } from "./adIds";
 export { sharePayload } from "./share";
 export {
   submitScore,
