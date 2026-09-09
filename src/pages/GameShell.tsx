@@ -258,33 +258,12 @@ export function GameShell() {
           CSS로 숨기는 방식은 토스 정책상 금지(광고를 인지하기 어렵게 만드는 행위)이므로
           반드시 DOM에서 제거하는 형태여야 한다. 재노출은 화면 전환 시에만 일어나며,
           타이머·인터벌 기반 재attach(광고 Refresh)는 트래픽 조작으로 금지돼 있다. */}
+      {/* [FIX 2026-09-09] 실기기 QA에서 배너가 감싼 카드와 겹쳐 보였다. variant "expanded"는
+          "가로로 꽉 찬" 형태가 전제라 카드(여백·테두리·라운드) 안에 넣으면 서로 싸운다.
+          공식 규격대로 너비 100% · 높이 96px 컨테이너를 비워두고 SDK가 채우게 한다.
+          "광고" 라벨도 뺐다 — 토스 배너가 "· AD"와 심의번호를 자체 표기한다. */}
       {screen === "gacha" && (
-        <div
-          style={{
-            margin: "0 20px 8px",
-            background: colors.surfaceRaised,
-            borderRadius: "12px",
-            border: `1px solid ${colors.border}`,
-            padding: "10px 12px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "10px",
-              fontWeight: 700,
-              color: colors.inkSecondary,
-              background: "#F3EFE4",
-              borderRadius: "6px",
-              padding: "2px 6px",
-            }}
-          >
-            {t("common.ad")}
-          </span>
-          <div ref={bannerRef} style={{ flex: 1, height: "96px" }} />
-        </div>
+        <div ref={bannerRef} style={{ width: "100%", height: "96px" }} />
       )}
     </div>
   );
