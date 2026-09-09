@@ -175,11 +175,22 @@ export function GameShell() {
   };
 
   return (
+    // [FIX 2026-09-09] Safe Area — 실기기 QA에서 제목이 iOS 노치/다이나믹 아일랜드에 걸렸다.
+    // TDS(TDSMobileAITProvider)가 body에 --toss-safe-area-top/bottom 을 주입해주는데
+    // 앱이 그걸 아무데서도 쓰지 않고 있었다. 여기 한 곳에서 소비한다 —
+    // 모든 화면이 이 컨테이너의 자식이라 아래로 전파된다.
+    //
+    // 폴백 0px 이 중요하다: Android 빌드에는 TDS가 없어 변수가 정의되지 않는데,
+    // 그때는 0px 로 떨어져 현재 동작 그대로다(회귀 없음).
+    // padding 이 height 100vh 안쪽으로 들어가야 하므로 border-box 가 필요하다.
     <div
       style={{
         display: "flex",
         flexDirection: "column",
         height: "100vh",
+        boxSizing: "border-box",
+        paddingTop: "var(--toss-safe-area-top, 0px)",
+        paddingBottom: "var(--toss-safe-area-bottom, 0px)",
         overflow: "hidden",
         background: colors.surfaceBase,
       }}
