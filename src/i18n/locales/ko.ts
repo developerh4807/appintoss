@@ -3,7 +3,6 @@
 export const ko = {
   common: {
     confirm: "확인",
-    ad: "광고",
     offline: "오프라인 상태예요. 광고 보상은 연결된 뒤에 받을 수 있어요.",
   },
   splash: {
