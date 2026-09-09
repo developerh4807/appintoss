@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { registerBackButton, useToast } from "@platform";
+import { AD_GROUP_IDS, registerBackButton, useToast } from "@platform";
 
 import {
   initialSecondsForStage,
@@ -21,7 +21,6 @@ import { GachaPage } from "./GachaPage";
 import { PuzzlePage } from "./PuzzlePage";
 
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
-const BANNER_AD_ID = "ait-ad-test-banner-id";
 
 type Screen = "puzzle" | "gacha";
 
@@ -81,7 +80,7 @@ export function GameShell() {
   useEffect(() => {
     if (!banner.isInitialized || !bannerRef.current) return;
 
-    const attached = banner.attachBanner(BANNER_AD_ID, bannerRef.current);
+    const attached = banner.attachBanner(AD_GROUP_IDS.banner, bannerRef.current);
 
     return () => {
       attached?.destroy();

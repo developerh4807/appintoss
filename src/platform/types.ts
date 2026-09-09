@@ -38,6 +38,16 @@ export interface BannerApi {
   ) => BannerHandle | undefined;
 }
 
+/**
+ * 광고 지면별 식별자. 토스는 콘솔에서 발급한 광고그룹 ID가 들어가고,
+ * Android는 AdMob 광고단위를 adIds.ts에서 따로 고르므로 이 값을 쓰지 않는다
+ * (계약을 맞추기 위한 자리표시자). 호출부는 어느 쪽인지 몰라도 된다.
+ */
+export interface AdGroupIds {
+  banner: string;
+  rewardedContinue: string;
+}
+
 /** 공유 페이로드. 토스는 message, 웹은 Web Share API의 text로 매핑된다. */
 export interface SharePayload {
   message: string;

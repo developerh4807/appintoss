@@ -1,4 +1,10 @@
-import { Button, sharePayload, useDialog, vibrate } from "@platform";
+import {
+  AD_GROUP_IDS,
+  Button,
+  sharePayload,
+  useDialog,
+  vibrate,
+} from "@platform";
 import { useEffect, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
@@ -37,7 +43,6 @@ const COLUMNS = 4;
 // 게이지가 시각적으로 완전히 비기 전에 "시간이 다 됐어요" 배너가 먼저 뜨는 걸 방지한다.
 const FAILURE_BANNER_DELAY_MS = 1000;
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
-const CONTINUE_AD_ID = "ait-ad-test-rewarded-id";
 
 // 보드 생성에 필요한 난이도 파생값을 한 곳에서 묶는다 — 보드를 만드는 지점이 셋
 // (최초 마운트·스테이지 전환·무료 재시도)이라 각자 계산하면 어긋나기 쉽다.
@@ -122,7 +127,7 @@ export function PuzzlePage({
   const [announcement, setAnnouncement] = useState("");
   const [clearedReward, setClearedReward] = useState(0);
   const dialog = useDialog();
-  const continueAd = useInAppAds(CONTINUE_AD_ID);
+  const continueAd = useInAppAds(AD_GROUP_IDS.rewardedContinue);
   const clearedRef = useRef(false);
   const thresholdAnnouncedRef = useRef(false);
   const failureAnnouncedRef = useRef(false);
