@@ -68,3 +68,60 @@ export interface LeaderboardApi {
  * 토스에서는 토스 앱이 직접 처리하므로 구현이 no-op이다.
  */
 export type BackHandler = () => boolean;
+
+/**
+ * [NEW 2026-09-11] 분석 이벤트 카탈로그 — 그로스 1라운드 P0-1.
+ *
+ * 이름이 곧 계약이다: 토스 콘솔의 핵심지표·이벤트 차트가 이 log_name을 기준으로 쌓이므로
+ * 이름을 바꾸면 과거 데이터와 끊긴다. 새 이벤트는 추가만 하고 기존 이름은 바꾸지 않는다.
+ *
+ * 파라미터는 원시값만 둔다(토스 Analytics가 전부 string으로 정규화한다). 유저 식별값·PII는
+ * 절대 넣지 않는다 — 유저 구분은 SDK가 anonymous_key를 자동으로 붙인다.
+ */
+export interface AnalyticsEventMap {
+  /** 런의 첫 타일 탭 — 앱을 연 게 아니라 실제로 플레이를 시작한 시점. 활성지표의 원천. */
+  run_start: { best_stage: number };
+  /** 스테이지 클리어. stage = 방금 클리어한 스테이지. */
+  stage_clear: { stage: number };
+  /** 컨티뉴 수단을 모두 소진해 결과 카드가 뜬 시점(런 종료). */
+  run_over: { cleared_stage: number; new_record: boolean };
+  /** 실패 후 이어하기를 실제로 쓴 시점. stage = 이어서 다시 하는 스테이지. */
+  continue_used: { type: "free" | "ad" | "share"; stage: number };
+  /** 광고가 실제로 노출된 시점(SDK 노출 이벤트 기준). */
+  ad_shown: { format: "banner" | "rewarded" };
+  /** "공유하고 한 판 더" 단계가 화면에 뜬 시점 — 공유 퍼널의 분모. */
+  share_prompt_shown: { stage: number };
+  /** 공유 리워드 시트에서 친구에게 실제로 공유를 보낸 시점(sendViral). */
+  share_sent: { stage: number };
+  /** 결과 카드의 일반 공유 버튼(FR-19, 보상 없음) 탭. 실제 전송 여부는 알 수 없다. */
+  result_share_click: { cleared_stage: number };
+  /** 결과 카드에서 랭킹 보기 탭. */
+  leaderboard_open: { cleared_stage: number };
+  /** 뽑기 1회. item = 뽑힌 아이템 종류. */
+  gacha_pull: { item: string };
+  /** 인벤토리에서 아이템 사용. */
+  item_used: { kind: string };
+}
+
+export type AnalyticsEventName = keyof AnalyticsEventMap;
+
+/** 화면 진입 기록용 이름. GameShell의 Screen과 1:1이다. */
+export type AnalyticsScreenName = "puzzle" | "gacha";
+
+/** 양 플랫폼 계측 어댑터가 지켜야 하는 시그니처. 실패는 어댑터가 전부 삼킨다. */
+export type LogEventFn = <K extends AnalyticsEventName>(
+  name: K,
+  params: AnalyticsEventMap[K],
+) => void;
+export type LogScreenFn = (name: AnalyticsScreenName) => void;
+
+/** [NEW 2026-09-11] 공유 리워드(친구 초대) 시트의 결과 콜백 — PRD FR-20. */
+export interface ShareRewardHandlers {
+  /** 친구에게 공유를 보냈다. 한 번 열어서 여러 명에게 보내면 여러 번 올 수 있다. */
+  onSent: () => void;
+  /**
+   * 시트가 닫혔다 — 오류로 닫힌 경우를 포함해 한 번 열면 정확히 한 번 불린다.
+   * rewarded = 이번에 공유를 한 번이라도 보냈는지. 보상(이어하기) 지급은 여기서 한다.
+   */
+  onClose: (result: { rewarded: boolean }) => void;
+}

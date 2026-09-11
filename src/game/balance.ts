@@ -16,6 +16,8 @@ export const TIME_BOOST_BONUS_SECONDS = 5;
 // 런당 2회(08-11). 오락실(런 리셋) 모델로 전환하면서 하루 단위 상한은 런당 카운트와
 // 중복 제약이라 폐기했다(useGlobalRetryCap.ts → useRunState.ts).
 // 무료 2회 + 광고 1회 = 총 3회를 모두 소진하면 스테이지 1로 리셋되고 다시 2회로 리충된다.
+// [UPDATED 2026-09-11] 토스 빌드는 광고 뒤에 "공유하고 한 판 더" 1회(FR-20)가 더 붙는다 —
+// 토스앱이 지원하고 콘솔 공유 리워드 moduleId가 있을 때만(useRunState.shareUsed).
 // 광고 일일 상한(useDailyAdCap.ts, FR-16)은 광고 과다 노출 방지 장치라 성격이 달라 유지.
 export const FREE_RETRIES_PER_RUN = 2;
 export const CRITICAL_TIME_RATIO = 0.25;

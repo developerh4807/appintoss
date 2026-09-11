@@ -11,4 +11,6 @@ export {
 export { vibrate } from "./haptics";
 export { Button, useDialog, useToast, PlatformProvider } from "./ui";
 export { registerBackButton } from "./appLifecycle";
+export { logEvent, logScreen } from "./analytics";
+export { isShareRewardSupported, openShareReward } from "./promotion";
 export type { BackHandler } from "../types";
