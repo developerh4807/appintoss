@@ -96,6 +96,10 @@ export function useInAppAds(adGroupId: string): InAppAdsApi {
               );
               setLastReward(event.data);
               break;
+            case "clicked":
+              // [NEW 2026-09-11] 광고 소재 클릭 계측 — "광고 보고 이어하기" 버튼 탭과는 다르다.
+              logEvent("ad_click", { format: "rewarded" });
+              break;
             case "impression":
               // [NEW 2026-09-11] 노출 계측(P0-1). 보상형 지면은 이어하기 하나라 형식만 남긴다.
               logEvent("ad_shown", { format: "rewarded" });
@@ -161,6 +165,7 @@ export function useBanner(): BannerApi {
           callbacks: {
             // [NEW 2026-09-11] 노출 계측(P0-1) — SDK가 노출로 집계한 시점에만 남긴다.
             onAdImpression: () => logEvent("ad_shown", { format: "banner" }),
+            onAdClicked: () => logEvent("ad_click", { format: "banner" }),
           },
         });
       } catch (error) {

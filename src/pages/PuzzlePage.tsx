@@ -150,6 +150,10 @@ export function PuzzlePage({
   const shareCleanupRef = useRef<(() => void) | null>(null);
   // 런 종료(run_over) 계측을 런당 1회로 막는 플래그.
   const runOverLoggedRef = useRef(false);
+  // 이어하기 단계 노출 계측(ad_continue_shown·share_continue_shown)을 "실패 한 번당 1회"로
+  // 막는 키. 광고 로딩 상태가 오가면서 같은 실패 카드에서 단계가 다시 판정될 수 있어서다.
+  const adStepLoggedRef = useRef<string | null>(null);
+  const shareStepLoggedRef = useRef<string | null>(null);
   // 이번 스테이지에 실제로 적용된 제한시간(보너스 포함). 보너스를 소모해도 이 값은
   // 스테이지가 끝날 때까지 유지돼 게이지 비율의 분모로 안전하게 쓸 수 있다.
   const activeStageSecondsRef = useRef(stageSeconds);
@@ -205,6 +209,10 @@ export function PuzzlePage({
   // 분기한다. ('다시 도전' 버튼을 없앤 대신, 갇히지 않도록 여기서 자동으로 결과 카드를 띄운다.)
   const runIsOver =
     !runState.canRetry && adContinueUnavailable && shareContinueUnavailable;
+  // 광고 이어하기 단계가 떠 있는지(로딩 중 포함) — 광고 퍼널 첫 단계 계측용.
+  const isAdStep = !runState.canRetry && !adContinueUnavailable;
+  // 실패 한 번을 가리키는 키. 런·스테이지·재시도 세대가 같으면 같은 실패 카드다.
+  const failureKey = `${runGen}-${stage}-${retryGen}`;
 
   // 새 스테이지로 넘어갈 때(stage)와 런이 리셋될 때(runGen) 모두 여기서 새 판을 깐다.
   // runGen이 deps에 있어야 스테이지 1에서 끝난 런도 깨끗하게 다시 시작된다 — 그 경우
@@ -373,15 +381,51 @@ export function PuzzlePage({
   useEffect(() => {
     if (!showFailureBanner || !runIsOver || runOverLoggedRef.current) return;
     runOverLoggedRef.current = true;
-    logEvent("run_over", { cleared_stage: clearedStage, new_record: isNewRecord });
+    // 스테이지는 "이번 런이 끝난 스테이지"로 보낸다. 결과 카드의 clearedStage는 역대 최고
+    // 기록(runState.bestStage)이라 런이 어디서 끝났는지를 말해주지 않는다.
+    logEvent("run_over", {
+      reached_stage: stage,
+      best_stage: runState.bestStage,
+      new_record: isNewRecord,
+    });
+    // 기록 경신 런의 수 — "기록을 깼을 때 더 공유하나"의 분모가 된다.
+    if (isNewRecord) {
+      logEvent("record_break", {
+        best_stage: runState.bestStage,
+        prev_best: runState.bestStageAtRunStart,
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showFailureBanner, runIsOver]);
 
-  // [NEW 2026-09-11] 공유 단계 노출 계측 — 공유 퍼널(노출 → 공유 → 이어하기)의 분모.
+  // [NEW 2026-09-11] 시간 초과 계측 — 실패 한 번마다 1회. 이어하기로 이어졌든 런이 끝났든 센다.
+  // next_step은 이 실패 뒤 남은 다음 수단이다(재시도 사다리의 어느 칸에서 떨어졌나).
   useEffect(() => {
-    if (showFailureBanner && isShareStep) logEvent("share_prompt_shown", { stage });
+    if (!failed) return;
+    const nextStep = runState.canRetry
+      ? "free"
+      : !adContinueUnavailable
+        ? "ad"
+        : !shareContinueUnavailable
+          ? "share"
+          : "over";
+    logEvent("stage_fail", { stage, next_step: nextStep });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFailureBanner, isShareStep]);
+  }, [failed]);
+
+  // [NEW 2026-09-11] 이어하기 단계 노출 계측 — 광고·공유 퍼널의 분모. 실패 한 번당 1회.
+  useEffect(() => {
+    if (!showFailureBanner) return;
+    if (isAdStep && adStepLoggedRef.current !== failureKey) {
+      adStepLoggedRef.current = failureKey;
+      logEvent("ad_continue_shown", { stage });
+    }
+    if (isShareStep && shareStepLoggedRef.current !== failureKey) {
+      shareStepLoggedRef.current = failureKey;
+      logEvent("share_continue_shown", { stage });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFailureBanner, isAdStep, isShareStep]);
 
   // 화면을 떠날 때 열려 있던 공유 리워드 구독을 정리한다(SDK가 cleanup 호출을 요구한다).
   // 언마운트 시점의 최신 값이 필요하므로 ref를 그대로 읽는다.
@@ -413,7 +457,11 @@ export function PuzzlePage({
   };
 
   const handleShare = () => {
-    logEvent("result_share_click", { cleared_stage: clearedStage });
+    logEvent("share_result_click", {
+      reached_stage: stage,
+      best_stage: runState.bestStage,
+      new_record: isNewRecord,
+    });
     void sharePayload({
       message: t("puzzle.shareMessage", {
         icon: tier.icon,
@@ -426,7 +474,10 @@ export function PuzzlePage({
   // 리더보드 웹뷰를 열면 미니앱이 백그라운드로 전환된다. 이 시점엔 이미 타이머가
   // 만료된 런 종료 상태라 진행 중인 상태가 없어 별도 저장/일시정지가 필요 없다.
   const handleOpenLeaderboard = () => {
-    logEvent("leaderboard_open", { cleared_stage: clearedStage });
+    logEvent("leaderboard_open", {
+      reached_stage: stage,
+      best_stage: runState.bestStage,
+    });
     void openLeaderboard();
   };
 
@@ -438,6 +489,7 @@ export function PuzzlePage({
       });
       return;
     }
+    logEvent("ad_continue_click", { stage });
     continueAd.showAd();
   };
 
@@ -445,9 +497,10 @@ export function PuzzlePage({
   // 준다 — 광고 이어하기와 똑같이 startRetry로 넘겨 보드·타이머 리셋을 재시도 effect에 맡긴다.
   const handleShareContinue = () => {
     if (isShareOpen) return;
+    logEvent("share_continue_click", { stage });
     setIsShareOpen(true);
     shareCleanupRef.current = openShareReward({
-      onSent: () => logEvent("share_sent", { stage }),
+      onSent: () => logEvent("share_continue_sent", { stage }),
       onClose: ({ rewarded }) => {
         shareCleanupRef.current = null;
         setIsShareOpen(false);

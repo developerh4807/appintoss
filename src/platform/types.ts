@@ -72,34 +72,65 @@ export type BackHandler = () => boolean;
 /**
  * [NEW 2026-09-11] 분석 이벤트 카탈로그 — 그로스 1라운드 P0-1.
  *
- * 이름이 곧 계약이다: 토스 콘솔의 핵심지표·이벤트 차트가 이 log_name을 기준으로 쌓이므로
+ * 이름이 곧 계약이다: 토스 콘솔의 핵심지표·이벤트 차트가 log_name을 기준으로 쌓이므로
  * 이름을 바꾸면 과거 데이터와 끊긴다. 새 이벤트는 추가만 하고 기존 이름은 바꾸지 않는다.
+ *
+ * [UPDATED 2026-09-11] 콘솔은 이벤트를 "이름"으로만 센다 — 파라미터는 값 목록만 보여주고
+ * 값별 발생 횟수는 집계하지 않는다(토스 담당자 공식 답변). 그래서 값별로 봐야 하는 축
+ * (스테이지 구간·아이템·이어하기 수단·광고 형식·기록 경신 여부)은 콘솔로 보낼 때 이름 뒤에
+ * 붙인다 — 규칙은 src/game/analyticsNaming.ts 의 SPLIT_RULES. 여기 키는 호출부가 쓰는
+ * "기본 이름"이고, 파라미터는 원본 값 보존용으로 그대로 함께 보낸다.
  *
  * 파라미터는 원시값만 둔다(토스 Analytics가 전부 string으로 정규화한다). 유저 식별값·PII는
  * 절대 넣지 않는다 — 유저 구분은 SDK가 anonymous_key를 자동으로 붙인다.
+ * 스테이지 파라미터는 뜻을 나눠 부른다: stage = 그 순간의 스테이지, reached_stage = 런이 끝난
+ * 스테이지, best_stage = 역대 최고 클리어 스테이지(runState.bestStage).
  */
 export interface AnalyticsEventMap {
   /** 런의 첫 타일 탭 — 앱을 연 게 아니라 실제로 플레이를 시작한 시점. 활성지표의 원천. */
   run_start: { best_stage: number };
-  /** 스테이지 클리어. stage = 방금 클리어한 스테이지. */
+  /**
+   * 런이 구간 첫 스테이지(1·2·3·4·5·9·14·20)에 도달한 순간 — 런당 스테이지마다 1회.
+   * 콘솔 이름 stage_reach_05 등. 구간별 이탈 = 도달(B) − 도달(다음 B).
+   */
+  stage_reach: { stage: number };
+  /** 스테이지 클리어. 총량과 핵심 지표(파라미터 조건)용이라 이름을 나누지 않는다. */
   stage_clear: { stage: number };
-  /** 컨티뉴 수단을 모두 소진해 결과 카드가 뜬 시점(런 종료). */
-  run_over: { cleared_stage: number; new_record: boolean };
-  /** 실패 후 이어하기를 실제로 쓴 시점. stage = 이어서 다시 하는 스테이지. */
+  /**
+   * 시간 초과로 스테이지 실패 — 실패 한 번마다 1회. next_step = 이 실패 뒤 남은 다음 수단.
+   * 콘솔 이름 stage_fail_s05_08 등(스테이지 구간).
+   */
+  stage_fail: { stage: number; next_step: "free" | "ad" | "share" | "over" };
+  /** 이어하기 수단을 모두 소진해 결과 카드가 뜬 시점(런 종료). 콘솔 이름 run_over_s05_08 등. */
+  run_over: { reached_stage: number; best_stage: number; new_record: boolean };
+  /** 최고 기록을 경신하고 끝난 런(run_over와 같은 순간 1회) — 기록 경신 런의 분모. */
+  record_break: { best_stage: number; prev_best: number };
+  /** 실패 후 이어하기를 실제로 쓴 시점. 콘솔 이름 continue_used_free|ad|share. */
   continue_used: { type: "free" | "ad" | "share"; stage: number };
-  /** 광고가 실제로 노출된 시점(SDK 노출 이벤트 기준). */
+  /** 광고 이어하기 단계가 뜬 시점(실패 한 번당 1회) — 광고 퍼널의 분모. */
+  ad_continue_shown: { stage: number };
+  /** "광고 보고 이어하기" 버튼 탭. */
+  ad_continue_click: { stage: number };
+  /** 광고가 실제로 노출된 시점(SDK 노출 이벤트 기준). 콘솔 이름 ad_shown_banner|rewarded. */
   ad_shown: { format: "banner" | "rewarded" };
-  /** "공유하고 한 판 더" 단계가 화면에 뜬 시점 — 공유 퍼널의 분모. */
-  share_prompt_shown: { stage: number };
+  /** 광고 소재 클릭(SDK 클릭 이벤트 기준). 콘솔 이름 ad_click_banner|rewarded. */
+  ad_click: { format: "banner" | "rewarded" };
+  /** "공유하고 한 판 더" 단계가 뜬 시점(실패 한 번당 1회) — 공유 퍼널의 분모. */
+  share_continue_shown: { stage: number };
+  /** "친구에게 공유하고 한 판 더" 버튼 탭. */
+  share_continue_click: { stage: number };
   /** 공유 리워드 시트에서 친구에게 실제로 공유를 보낸 시점(sendViral). */
-  share_sent: { stage: number };
-  /** 결과 카드의 일반 공유 버튼(FR-19, 보상 없음) 탭. 실제 전송 여부는 알 수 없다. */
-  result_share_click: { cleared_stage: number };
+  share_continue_sent: { stage: number };
+  /**
+   * 결과 카드의 일반 공유 버튼(FR-19, 보상 없음) 탭. 실제 전송 여부는 알 수 없다.
+   * 콘솔 이름 share_result_click_record|norecord(기록 경신 여부).
+   */
+  share_result_click: { reached_stage: number; best_stage: number; new_record: boolean };
   /** 결과 카드에서 랭킹 보기 탭. */
-  leaderboard_open: { cleared_stage: number };
-  /** 뽑기 1회. item = 뽑힌 아이템 종류. */
+  leaderboard_open: { reached_stage: number; best_stage: number };
+  /** 뽑기 1회. 총량을 보는 이벤트라 이름을 나누지 않는다(뽑히는 분포는 가중치로 정해져 있다). */
   gacha_pull: { item: string };
-  /** 인벤토리에서 아이템 사용. */
+  /** 인벤토리에서 아이템 사용. 콘솔 이름 item_used_time_boost 등. */
   item_used: { kind: string };
 }
 
