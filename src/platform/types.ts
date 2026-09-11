@@ -132,6 +132,11 @@ export interface AnalyticsEventMap {
   gacha_pull: { item: string };
   /** 인벤토리에서 아이템 사용. 콘솔 이름 item_used_time_boost 등. */
   item_used: { kind: string };
+  /**
+   * 리뷰(별점) 요청을 실제로 호출한 시점(토스 전용). 토스가 창을 띄웠는지는 알 수 없어서
+   * "요청 횟수"만 센다 — 결과는 콘솔 '평점 및 리뷰'와 나란히 본다.
+   */
+  review_request: { stage: number };
 }
 
 export type AnalyticsEventName = keyof AnalyticsEventMap;
@@ -156,3 +161,10 @@ export interface ShareRewardHandlers {
    */
   onClose: (result: { rewarded: boolean }) => void;
 }
+
+/**
+ * [NEW 2026-09-11] 리뷰(별점) 요청. 호출부는 "만족스러운 순간"이라는 사실만 알리고, 실제로
+ * 요청할지(지원 여부·세션당 1회·쿨다운)는 어댑터가 정한다. 결과를 돌려주지 않는다 — 토스가
+ * 노출 여부를 알려주지 않고, 가이드상 흐름이 결과에 의존하면 안 된다. Android는 no-op.
+ */
+export type RequestReviewFn = (context: { stage: number }) => void;

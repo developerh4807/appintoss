@@ -16,4 +16,5 @@ export { Button, useDialog, useToast, PlatformProvider } from "./ui";
 export { registerBackButton } from "./appLifecycle";
 export { logEvent, logScreen } from "./analytics";
 export { isShareRewardSupported, openShareReward } from "./promotion";
+export { requestReview } from "./review";
 export type { BackHandler } from "../types";

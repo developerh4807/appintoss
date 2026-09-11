@@ -4,6 +4,7 @@ import {
   isShareRewardSupported,
   logEvent,
   openShareReward,
+  requestReview,
   sharePayload,
   useDialog,
   vibrate,
@@ -45,6 +46,11 @@ const COLUMNS = 4;
 // 타이머 게이지의 CSS 전환 시간(1s linear, 아래 timer-track 참고)과 맞춘 지연 —
 // 게이지가 시각적으로 완전히 비기 전에 "시간이 다 됐어요" 배너가 먼저 뜨는 걸 방지한다.
 const FAILURE_BANNER_DELAY_MS = 1000;
+// [NEW 2026-09-11] 리뷰(별점) 요청 조건 — 역대 최고를 새로 깬, 이 스테이지 이상의 클리어에서만.
+// 5는 첫 티어 승급(하마급) 경계라 "게임의 재미를 느꼈다"고 볼 수 있는 첫 지점이다.
+const REVIEW_REQUEST_MIN_STAGE = 5;
+// 클리어 창을 먼저 보여주고 요청한다 — 성공을 알아챈 다음에 리뷰 창이 떠야 한다.
+const REVIEW_REQUEST_DELAY_MS = 700;
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
 
 // 보드 생성에 필요한 난이도 파생값을 한 곳에서 묶는다 — 보드를 만드는 지점이 셋
@@ -290,6 +296,22 @@ export function PuzzlePage({
       onReward(reward);
       timer.setPaused(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleared]);
+
+  // [NEW 2026-09-11] 리뷰(별점) 요청 — 역대 최고를 새로 깬 5스테이지 이상 클리어에서만.
+  // 방금 성공했고 타이머도 멈춘 순간이라 리뷰 창이 떠도 손해가 없다. 실제로 요청할지(지원 여부·
+  // 세션당 1회·쿨다운)는 어댑터가 정하고, 흐름은 결과와 무관하게 그대로 이어진다(Android는 no-op).
+  // bestStage는 "다음 스테이지"로 넘어갈 때 갱신되므로, 여기서 stage > bestStage면 처음 깬 스테이지다.
+  // 지연 전에 다음 화면으로 넘어가면(cleared가 풀리거나 언마운트) cleanup이 요청을 취소한다.
+  useEffect(() => {
+    if (!cleared) return;
+    if (stage < REVIEW_REQUEST_MIN_STAGE || stage <= runState.bestStage) return;
+    const reviewTimer = setTimeout(
+      () => requestReview({ stage }),
+      REVIEW_REQUEST_DELAY_MS,
+    );
+    return () => clearTimeout(reviewTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleared]);
 
