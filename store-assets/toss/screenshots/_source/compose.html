@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<title>토스 스토어 스크린샷 합성틀</title>
+<style>
+  /*
+   * 토스 미니앱 스토어 스크린샷 합성틀 — 한 장 636×1048.
+   *
+   *   compose.html?frame=1  두뇌회전 풀가동!
+   *   compose.html?frame=2  나무늘보급? 치타급?
+   *   compose.html?frame=3  아이템으로 더
+   *
+   * 캡처 원본은 raw/ssN-raw.png (780×1688, DPR 2).
+   * 웹폰트는 로드하지 않는다 — 오프라인 재현성 때문에 로컬 Apple SD Gothic Neo만 쓴다.
+   * 브랜드 톤은 Play 스크린샷과 같은 계열(진한 청록 띠 + 흰 굵은 카피 + #FFF8EC 본문).
+   */
+
+  :root {
+    --band: #0E3C3A;       /* 카피 띠 */
+    --surface: #FFF8EC;    /* 본문 배경 = colors.surfaceBase */
+    --ink-on-band: #FFFFFF;
+    --primary: #FFC93C;    /* theme.ts colors.primary */
+    --accent: #0F6E6B;     /* theme.ts colors.accent */
+
+    --W: 636px;
+    --H: 1048px;
+    --band-h: 252px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: var(--W);
+    height: var(--H);
+    overflow: hidden;
+    background: var(--surface);
+    font-family: "Apple SD Gothic Neo", -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sheet {
+    position: relative;
+    width: var(--W);
+    height: var(--H);
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+  }
+
+  /* ── 상단 카피 띠 ───────────────────────────────────────────── */
+
+  .band {
+    flex: 0 0 auto;
+    min-height: var(--band-h);
+    padding-top: 28px;
+    padding-bottom: 28px;
+    background: var(--band);
+    padding: 0 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  .copy {
+    color: var(--ink-on-band);
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1.32;
+    letter-spacing: -0.02em;
+    text-align: left;
+    word-break: keep-all;
+  }
+
+  /* ② 등급 사다리 띠 — 게임의 실제 등급 5종 */
+  .tiers {
+    margin-top: 20px;
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+  }
+
+  .tier {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+  }
+
+  .tier .ico { font-size: 26px; line-height: 1; }
+
+  .tier .name {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.62);
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  /* 마지막 등급(치타급)을 강조 — 위 카피의 "치타급?"과 이어진다 */
+  .tier.is-top .ico { font-size: 32px; }
+  .tier.is-top .name { color: var(--primary); font-weight: 800; }
+
+  .tier .arrow {
+    align-self: center;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.38);
+    padding-bottom: 14px;
+  }
+
+  /* ── 하단 캡처 영역 ─────────────────────────────────────────── */
+
+  .shot {
+    flex: 1 1 auto;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /*
+   * 캡처 원본은 780×1688(DPR 2). --zoom 배율로 폭을 정하고, 보여줄 세로 구간을
+   * --shift(렌더 후 픽셀)로 끌어올린다. 두 값은 원본 콘텐츠 경계를 실측해 잡았다
+   * (magick -format %@ 기준, 636/780 = 0.8154 환산).
+   */
+  .shot img {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: calc(var(--W) * var(--zoom, 1));
+    height: auto;
+    transform: translate(-50%, calc(-1 * var(--shift, 0px)));
+    display: block;
+  }
+
+  /* 컷별 크롭 (본문 높이 796px) */
+
+  /* ① 헤더~보드 4행 전체가 들어가게 살짝 축소 */
+  .shot.f1 { --zoom: 0.94; --shift: 32px; }
+
+  /* ② 결과 카드가 주인공 — 게임 헤더·타이머는 띠 뒤로 넘기고 카드부터 보인다 */
+  .shot.f2 { --zoom: 1; --shift: 248px; }
+
+  /* ③ 공개 모달 중심 — 위아래 빈 딤을 덜어내고 모달을 키운다 */
+  .shot.f3 { --zoom: 1.16; --shift: 430px; }
+
+  /* 아래 끝이 잘린 느낌을 없애는 옅은 페이드 */
+  .shot::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 72px;
+    background: linear-gradient(to bottom, rgba(255,248,236,0), var(--surface));
+    pointer-events: none;
+  }
+
+  /* ③은 캡처 자체가 어두운 딤이라 밝은 페이드가 어울리지 않는다 */
+  .shot.f3::after { display: none; }
+
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="band">
+      <div class="copy" id="copy"></div>
+      <div class="tiers" id="tiers" hidden>
+        <div class="tier"><span class="ico">🦥</span><span class="name">나무늘보급</span></div>
+        <span class="arrow">›</span>
+        <div class="tier"><span class="ico">🦛</span><span class="name">하마급</span></div>
+        <span class="arrow">›</span>
+        <div class="tier"><span class="ico">🦌</span><span class="name">사슴급</span></div>
+        <span class="arrow">›</span>
+        <div class="tier"><span class="ico">🦊</span><span class="name">여우급</span></div>
+        <span class="arrow">›</span>
+        <div class="tier is-top"><span class="ico">🐆</span><span class="name">치타급</span></div>
+      </div>
+    </div>
+    <div class="shot" id="shot">
+      <img id="raw" alt="" />
+    </div>
+  </div>
+
+<script>
+  // 사용자가 확정한 카피 — 글자 하나도 바꾸지 않는다(느낌표·물음표 포함).
+  const FRAMES = {
+    1: {
+      lines: ["두뇌회전 풀가동!", "아슬아슬 순발력 게임!"],
+      raw: "raw/ss1-raw.png",
+      tiers: false,
+    },
+    2: {
+      lines: ["나무늘보급? 치타급?", "친구랑 붙어봐요"],
+      raw: "raw/ss2-raw.png",
+      tiers: true,
+    },
+    3: {
+      lines: ["아이템으로 더", "재미있게 즐겨봐요"],
+      raw: "raw/ss3-raw.png",
+      tiers: false,
+    },
+  };
+
+  const n = new URLSearchParams(location.search).get("frame") || "1";
+  const frame = FRAMES[n] || FRAMES[1];
+
+  document.getElementById("copy").innerHTML = frame.lines
+    .map((l) => `<div>${l}</div>`)
+    .join("");
+  document.getElementById("raw").src = frame.raw;
+  document.getElementById("shot").classList.add("f" + n);
+  if (frame.tiers) document.getElementById("tiers").hidden = false;
+</script>
+</body>
+</html>
