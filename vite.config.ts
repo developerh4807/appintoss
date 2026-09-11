@@ -50,6 +50,33 @@ function assertTossAdGroupIds(env: Record<string, string>) {
   }
 }
 
+/**
+ * [NEW 2026-09-11] 공유 리워드 moduleId 점검 — 광고그룹 ID와 달리 없어도 빌드를 막지 않는다.
+ *
+ * 없으면 "공유하고 한 판 더" 단계만 빠질 뿐 게임은 정상이라, 콘솔 모듈을 만들기 전에도
+ * 계측 같은 다른 변경은 출시할 수 있어야 한다. 대신 모르고 빠진 채 나가지 않도록 경고한다.
+ * 값이 있는데 UUID 형식이 아니면 복사 실수이므로 빌드를 실패시킨다 — 조용히 안 뜨는
+ * 버튼이 더 나쁘다.
+ */
+function checkTossShareRewardModuleId(env: Record<string, string>) {
+  const moduleId = env.VITE_TOSS_SHARE_REWARD_MODULE_ID;
+  if (!moduleId) {
+    console.warn(
+      `\n⚠️  VITE_TOSS_SHARE_REWARD_MODULE_ID 가 비어 있어 "공유하고 한 판 더" 단계가 빠진 번들입니다.\n` +
+        `   앱인토스 콘솔 → 공유 리워드에서 모듈을 만든 뒤 .env.local 에 UUID를 채우세요.\n`,
+    );
+    return;
+  }
+
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuid.test(moduleId)) {
+    throw new Error(
+      `VITE_TOSS_SHARE_REWARD_MODULE_ID 가 UUID 형식이 아닙니다: ${moduleId}\n` +
+        `콘솔 공유 리워드 화면의 moduleId를 그대로 복사하세요.`,
+    );
+  }
+}
+
 export default defineConfig(({ command, mode }) => {
   // .env.local 은 process.env 에 자동으로 들어오지 않으므로 직접 읽는다.
   // (검증용으로만 쓴다 — 앱 코드로의 주입은 Vite가 알아서 한다.)
@@ -59,6 +86,7 @@ export default defineConfig(({ command, mode }) => {
   // 광고 ID 때문에 개발이 막히는 편이 더 나쁘다. 막는 건 산출물이 나가는 빌드뿐이다.
   if (platform === "toss" && command === "build") {
     assertTossAdGroupIds(env);
+    checkTossShareRewardModuleId(env);
   }
 
   return {

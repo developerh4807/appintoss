@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AD_GROUP_IDS, registerBackButton, useToast } from "@platform";
+import {
+  AD_GROUP_IDS,
+  logEvent,
+  logScreen,
+  registerBackButton,
+  useToast,
+} from "@platform";
 
+import { isStageReachMark } from "../game/analyticsNaming";
 import {
   initialSecondsForStage,
   TIME_BOOST_BONUS_SECONDS,
@@ -60,6 +67,31 @@ export function GameShell() {
   const banner = useTossBanner();
   const bannerRef = useRef<HTMLDivElement>(null);
   const isOnline = useOnlineStatus();
+  // [NEW 2026-09-11] 런 시작 계측(P0-1) — "앱을 열었다"가 아니라 런의 첫 타일 탭을 시작으로 친다.
+  // 퍼즐은 마운트되자마자 타이머가 돌아서, 마운트 기준이면 열자마자 나간 유저까지 플레이로 잡힌다.
+  // PuzzlePage는 스테이지·화면 전환마다 다시 마운트되므로 런 단위 플래그는 여기서 든다.
+  const runStartLoggedRef = useRef(false);
+  const handlePlay = () => {
+    if (runStartLoggedRef.current) return;
+    runStartLoggedRef.current = true;
+    logEvent("run_start", { best_stage: runState.bestStage });
+  };
+
+  // [NEW 2026-09-11] 화면 진입 계측 — 퍼즐/뽑기 전환은 전부 이 state 하나로 일어난다.
+  useEffect(() => {
+    logScreen(screen);
+  }, [screen]);
+
+  // [NEW 2026-09-11] 구간 도달 계측 — 구간 첫 스테이지(1·2·3·4·5·9·14·20)에 도달한 런 수.
+  // 구간별 이탈 = 도달(B) − 도달(다음 B). PuzzlePage는 뽑기 화면을 다녀오면 다시 마운트돼서
+  // 거기서 세면 같은 스테이지가 두 번 잡힐 수 있다 — 런 단위로 여기서 한 번만 센다.
+  // runGen이 deps에 있는 이유: 스테이지 1에서 끝난 런은 리셋해도 stage가 1 → 1이라 바뀌지 않는다.
+  const reachLoggedRef = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    if (!isStageReachMark(stage) || reachLoggedRef.current.has(stage)) return;
+    reachLoggedRef.current.add(stage);
+    logEvent("stage_reach", { stage });
+  }, [stage, runGen]);
 
   // [NEW 2026-08-21] 하드웨어 뒤로가기(8️⃣④). 뽑기 화면에서는 퍼즐로 되돌리고,
   // 퍼즐 화면(최상위)에서만 false를 반환해 앱이 종료되게 한다.
@@ -96,6 +128,7 @@ export function GameShell() {
     }
     const rolled = rollItem();
     addItem(rolled);
+    logEvent("gacha_pull", { item: rolled });
     setRevealedItem(rolled);
   };
 
@@ -108,6 +141,7 @@ export function GameShell() {
       return;
     }
     if (!consumeItem(type)) return;
+    logEvent("item_used", { kind: type });
     if (type === "timeBoost") {
       // [FIXED 2026-08-11] 예전엔 timer.addTime(5)로 즉시 적용했는데, ⑤에서 아이템을
       // "스테이지 시작 전"에만 쓰도록 바꾸면서 이 경로가 깨졌다 — 다음 스테이지로 넘어갈 때
@@ -165,6 +199,9 @@ export function GameShell() {
     // PuzzlePage가 깨끗한 1스테이지(새 보드·타이머 리셋)로 다시 시작한다.
     setRunGen((g) => g + 1);
     runState.resetRun();
+    // 다음 런의 첫 타일 탭(run_start)과 구간 도달(stage_reach)을 처음부터 다시 센다.
+    runStartLoggedRef.current = false;
+    reachLoggedRef.current = new Set();
     // 아이템 효과는 런에 딸린 일시 상태라 함께 정리한다 — 실패한 런에서 쌓아둔 방패
     // 스택이 새 런 1스테이지로 넘어가면 안 된다.
     setShieldCharges(0);
@@ -231,6 +268,7 @@ export function GameShell() {
           stageSeconds={stageSeconds}
           timeBoostCharges={timeBoostCharges}
           onConsumeTimeBoost={() => setTimeBoostCharges(0)}
+          onPlay={handlePlay}
         />
       ) : (
         <GachaPage

@@ -7,6 +7,7 @@ import { useToast } from "@toss/tds-mobile";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { BannerApi, BannerHandle, InAppAdsApi, Reward } from "../types";
+import { logEvent } from "./analytics";
 
 // [MOVED 2026-08-21] 기존 src/hooks/useInAppAds.tsx + useTossBanner.ts 를 그대로 옮겼다.
 // 로직은 한 줄도 바꾸지 않았다 — 1단계의 목적은 "동작 변화 0"이다.
@@ -95,6 +96,14 @@ export function useInAppAds(adGroupId: string): InAppAdsApi {
               );
               setLastReward(event.data);
               break;
+            case "clicked":
+              // [NEW 2026-09-11] 광고 소재 클릭 계측 — "광고 보고 이어하기" 버튼 탭과는 다르다.
+              logEvent("ad_click", { format: "rewarded" });
+              break;
+            case "impression":
+              // [NEW 2026-09-11] 노출 계측(P0-1). 보상형 지면은 이어하기 하나라 형식만 남긴다.
+              logEvent("ad_shown", { format: "rewarded" });
+              break;
             case "dismissed":
               setIsAdLoaded(false);
               load();
@@ -153,6 +162,11 @@ export function useBanner(): BannerApi {
       try {
         return TossAds.attachBanner(adGroupId, element, {
           variant: "expanded",
+          callbacks: {
+            // [NEW 2026-09-11] 노출 계측(P0-1) — SDK가 노출로 집계한 시점에만 남긴다.
+            onAdImpression: () => logEvent("ad_shown", { format: "banner" }),
+            onAdClicked: () => logEvent("ad_click", { format: "banner" }),
+          },
         });
       } catch (error) {
         console.error("배너 광고 부착 실패:", error);

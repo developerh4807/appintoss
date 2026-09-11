@@ -25,6 +25,10 @@ export const en = {
     retriesUsed: "Free retries used this run: {{used}}/{{max}}",
     freeRetry: "Free retry",
     watchAdContinue: "Watch ad to continue",
+    shareContinue: "Share with a friend for one more try",
+    shareContinueHint:
+      "Share with a friend to play this stage once more — plus coins for each friend (up to {{limit}} a day).",
+    endRun: "See results",
     clearTitle: "Stage cleared!",
     clearReward: "You earned {{reward}} coins.",
     nextStage: "Next stage",
@@ -60,6 +64,7 @@ export const en = {
     doubleRewardReady: "Next stage clear reward will be doubled.",
     pullSuccess: "Pulled: got {{item}}!",
     adReward: "Reward earned: {{unitType}} ×{{amount}}",
+    shareRewardCoins: "Share reward: you got {{amount}} coins!",
   },
   items: {
     timeBoost: { label: "Time Boost", description: "+5s on the next stage timer" },

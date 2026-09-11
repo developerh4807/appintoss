@@ -19,6 +19,9 @@ interface RunState {
   // 주석의 "무료 2회 + 광고 1회" 계약). 예전엔 이 플래그가 없어 일일 상한(20회)에 걸리기
   // 전까지 한 런에서 광고를 무한히 이어할 수 있었다.
   adUsed: boolean;
+  // [NEW 2026-09-11] 이번 런에서 "공유하고 한 판 더"(FR-20)를 이미 썼는지. 광고 다음 단계로
+  // 런당 1회다. 토스 빌드에서 공유 리워드를 지원할 때만 의미가 있다.
+  shareUsed: boolean;
   // 런 리셋과 무관하게 누적되는 개인 최고 도달 스테이지. 리더보드 제출 값의 원천이다.
   bestStage: number;
   // 이번 런이 시작될 때의 bestStage 스냅샷. bestStage는 클리어할 때마다 갱신되므로,
@@ -30,6 +33,7 @@ interface RunState {
 const DEFAULT_RUN_STATE: RunState = {
   retriesUsed: 0,
   adUsed: false,
+  shareUsed: false,
   bestStage: 1,
   bestStageAtRunStart: 1,
 };
@@ -56,6 +60,7 @@ function loadState(): RunState {
       return {
         retriesUsed: 0,
         adUsed: false,
+        shareUsed: false,
         bestStage: parsed.bestStage,
         bestStageAtRunStart: parsed.bestStage,
       };
@@ -78,6 +83,10 @@ interface UseRunStateReturn {
   recordRetry: () => void;
   /** 광고 이어하기를 이번 런에 썼다고 기록한다 — 이후 canUseAdContinue가 false가 된다. */
   recordAdContinue: () => void;
+  /** 이번 런에서 "공유하고 한 판 더"를 아직 안 썼는지(런당 1회). */
+  canUseShareContinue: boolean;
+  /** 공유 이어하기를 이번 런에 썼다고 기록한다 — 이후 canUseShareContinue가 false가 된다. */
+  recordShareContinue: () => void;
   /** 런 리셋 — 재시도 카운트와 광고 사용 여부를 되돌린다. 스테이지 리셋은 호출부(useCurrency)가 담당. */
   resetRun: () => void;
   /** 도달 스테이지가 기존 최고기록을 넘으면 갱신한다. 넘지 못하면 no-op. */
@@ -103,12 +112,17 @@ export function useRunState(): UseRunStateReturn {
     setState((prev) => ({ ...prev, adUsed: true }));
   }, []);
 
+  const recordShareContinue = useCallback(() => {
+    setState((prev) => ({ ...prev, shareUsed: true }));
+  }, []);
+
   const resetRun = useCallback(() => {
     // 새 런의 기준선을 지금까지의 최고기록으로 다시 찍는다 — 다음 런의 "경신" 판정 기준.
     setState((prev) => ({
       ...prev,
       retriesUsed: 0,
       adUsed: false,
+      shareUsed: false,
       bestStageAtRunStart: prev.bestStage,
     }));
   }, []);
@@ -124,10 +138,12 @@ export function useRunState(): UseRunStateReturn {
     maxRetries: FREE_RETRIES_PER_RUN,
     canRetry: state.retriesUsed < FREE_RETRIES_PER_RUN,
     canUseAdContinue: !state.adUsed,
+    canUseShareContinue: !state.shareUsed,
     bestStage: state.bestStage,
     bestStageAtRunStart: state.bestStageAtRunStart,
     recordRetry,
     recordAdContinue,
+    recordShareContinue,
     resetRun,
     recordStage,
   };

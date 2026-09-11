@@ -25,6 +25,10 @@ export const ko = {
     retriesUsed: "이번 런 무료 재시도 {{used}}/{{max}}회 사용",
     freeRetry: "무료로 재시도",
     watchAdContinue: "광고 보고 이어하기",
+    shareContinue: "친구에게 공유하고 한 판 더",
+    shareContinueHint:
+      "친구에게 공유하면 이 스테이지를 한 번 더 할 수 있어요. 친구 1명마다 코인도 받아요(하루 {{limit}}명까지).",
+    endRun: "결과 보기",
     clearTitle: "스테이지 클리어!",
     clearReward: "재화 {{reward}}개를 획득했어요.",
     nextStage: "다음 스테이지",
@@ -61,6 +65,7 @@ export const ko = {
     doubleRewardReady: "다음 스테이지 클리어 보상이 2배가 돼요.",
     pullSuccess: "뽑기 성공: {{item}} 획득!",
     adReward: "보상 획득: {{unitType}} {{amount}}개",
+    shareRewardCoins: "친구 공유 보상으로 코인 {{amount}}개를 받았어요!",
   },
   items: {
     timeBoost: { label: "시간 회복", description: "다음 스테이지 제한시간 +5초" },

@@ -1,8 +1,13 @@
 import {
   AD_GROUP_IDS,
   Button,
+  isShareRewardSupported,
+  logEvent,
+  openShareReward,
+  requestReview,
   sharePayload,
   useDialog,
+  useToast,
   vibrate,
 } from "@platform";
 import { useEffect, useRef, useState } from "react";
@@ -16,6 +21,7 @@ import {
   hideEnabledForStage,
   iconPoolForStage,
   MISMATCH_PENALTY_SECONDS,
+  SHARE_REWARD_DAILY_LIMIT,
   TIME_BOOST_BONUS_SECONDS,
 } from "../game/balance";
 import {
@@ -42,6 +48,11 @@ const COLUMNS = 4;
 // 타이머 게이지의 CSS 전환 시간(1s linear, 아래 timer-track 참고)과 맞춘 지연 —
 // 게이지가 시각적으로 완전히 비기 전에 "시간이 다 됐어요" 배너가 먼저 뜨는 걸 방지한다.
 const FAILURE_BANNER_DELAY_MS = 1000;
+// [NEW 2026-09-11] 리뷰(별점) 요청 조건 — 역대 최고를 새로 깬, 이 스테이지 이상의 클리어에서만.
+// 5는 첫 티어 승급(하마급) 경계라 "게임의 재미를 느꼈다"고 볼 수 있는 첫 지점이다.
+const REVIEW_REQUEST_MIN_STAGE = 5;
+// 클리어 창을 먼저 보여주고 요청한다 — 성공을 알아챈 다음에 리뷰 창이 떠야 한다.
+const REVIEW_REQUEST_DELAY_MS = 700;
 // TODO: 서비스를 출시하기 전에 앱인토스 콘솔에서 발급한 광고그룹ID로 변경해주세요.
 
 // 보드 생성에 필요한 난이도 파생값을 한 곳에서 묶는다 — 보드를 만드는 지점이 셋
@@ -58,10 +69,12 @@ interface RunState {
   maxRetries: number;
   canRetry: boolean;
   canUseAdContinue: boolean;
+  canUseShareContinue: boolean;
   bestStage: number;
   bestStageAtRunStart: number;
   recordRetry: () => void;
   recordAdContinue: () => void;
+  recordShareContinue: () => void;
 }
 
 interface PuzzlePageProps {
@@ -90,6 +103,8 @@ interface PuzzlePageProps {
   /** 스테이지 시작 전 쌓아둔 시간 회복 개수 — 다음 스테이지 시작 시 개수 × 보너스초로 한 번에 반영된다. */
   timeBoostCharges: number;
   onConsumeTimeBoost: () => void;
+  /** [NEW 2026-09-11] 타일을 눌렀다 — 런 시작 계측용. 런당 1회 판정은 GameShell이 한다. */
+  onPlay: () => void;
 }
 
 export function PuzzlePage({
@@ -110,6 +125,7 @@ export function PuzzlePage({
   stageSeconds,
   timeBoostCharges,
   onConsumeTimeBoost,
+  onPlay,
 }: PuzzlePageProps) {
   const { t } = useTranslation();
   // [FIX 2026-08-28] 같은 스테이지에서 보드를 다시 까는 재시도(무료·광고)의 세대 카운터.
@@ -127,11 +143,26 @@ export function PuzzlePage({
   const [announcement, setAnnouncement] = useState("");
   const [clearedReward, setClearedReward] = useState(0);
   const dialog = useDialog();
+  const toast = useToast();
   const continueAd = useInAppAds(AD_GROUP_IDS.rewardedContinue);
   const clearedRef = useRef(false);
   const thresholdAnnouncedRef = useRef(false);
   const failureAnnouncedRef = useRef(false);
   const handledRewardRef = useRef<typeof continueAd.lastReward>(null);
+  // [NEW 2026-09-11] 공유 리워드("공유하고 한 판 더", FR-20) 상태.
+  // 지원 여부는 마운트 때 한 번만 판정한다 — 토스앱 버전·moduleId는 세션 중에 바뀌지 않는다.
+  const [shareRewardSupported] = useState(isShareRewardSupported);
+  // 시트가 떠 있는 동안 버튼을 잠근다 — 두 번 눌러 시트가 겹쳐 뜨지 않게.
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  // 공유 단계에서 "결과 보기"를 고르면 이번 런은 거기서 끝낸다.
+  const [shareDeclined, setShareDeclined] = useState(false);
+  const shareCleanupRef = useRef<(() => void) | null>(null);
+  // 런 종료(run_over) 계측을 런당 1회로 막는 플래그.
+  const runOverLoggedRef = useRef(false);
+  // 이어하기 단계 노출 계측(ad_continue_shown·share_continue_shown)을 "실패 한 번당 1회"로
+  // 막는 키. 광고 로딩 상태가 오가면서 같은 실패 카드에서 단계가 다시 판정될 수 있어서다.
+  const adStepLoggedRef = useRef<string | null>(null);
+  const shareStepLoggedRef = useRef<string | null>(null);
   // 이번 스테이지에 실제로 적용된 제한시간(보너스 포함). 보너스를 소모해도 이 값은
   // 스테이지가 끝날 때까지 유지돼 게이지 비율의 분모로 안전하게 쓸 수 있다.
   const activeStageSecondsRef = useRef(stageSeconds);
@@ -176,9 +207,21 @@ export function PuzzlePage({
     !continueAd.isSupported ||
     !adCap.canWatch ||
     (!continueAd.isAdLoaded && !continueAd.isLoading);
-  // 무료도 소진하고 광고도 볼 수 없으면 이번 런은 끝 — game over 결과 카드로 분기한다.
-  // ('다시 도전' 버튼을 없앤 대신, 갇히지 않도록 여기서 자동으로 결과 카드를 띄운다.)
-  const runIsOver = !runState.canRetry && adContinueUnavailable;
+  // [NEW 2026-09-11] 광고 다음 단계 — "공유하고 한 판 더"(FR-20, 런당 1회). 토스앱이 지원하고
+  // 콘솔 공유 리워드 moduleId가 있을 때만 존재한다(Android·moduleId 없는 번들은 이 단계가 없다).
+  // 유저가 "결과 보기"로 거절하면 이번 런은 거기서 끝낸다.
+  const shareContinueUnavailable =
+    !shareRewardSupported || !runState.canUseShareContinue || shareDeclined;
+  const isShareStep =
+    !runState.canRetry && adContinueUnavailable && !shareContinueUnavailable;
+  // 무료도 소진하고 광고도 볼 수 없고 공유 단계도 없으면 이번 런은 끝 — game over 결과 카드로
+  // 분기한다. ('다시 도전' 버튼을 없앤 대신, 갇히지 않도록 여기서 자동으로 결과 카드를 띄운다.)
+  const runIsOver =
+    !runState.canRetry && adContinueUnavailable && shareContinueUnavailable;
+  // 광고 이어하기 단계가 떠 있는지(로딩 중 포함) — 광고 퍼널 첫 단계 계측용.
+  const isAdStep = !runState.canRetry && !adContinueUnavailable;
+  // 실패 한 번을 가리키는 키. 런·스테이지·재시도 세대가 같으면 같은 실패 카드다.
+  const failureKey = `${runGen}-${stage}-${retryGen}`;
 
   // 새 스테이지로 넘어갈 때(stage)와 런이 리셋될 때(runGen) 모두 여기서 새 판을 깐다.
   // runGen이 deps에 있어야 스테이지 1에서 끝난 런도 깨끗하게 다시 시작된다 — 그 경우
@@ -196,6 +239,9 @@ export function PuzzlePage({
     clearedRef.current = false;
     thresholdAnnouncedRef.current = false;
     failureAnnouncedRef.current = false;
+    // 새 런이 시작되면 공유 거절 여부와 런 종료 계측 플래그도 초기화한다.
+    setShareDeclined(false);
+    runOverLoggedRef.current = false;
     // 이번 스테이지 동안 쓸 제한시간을 여기서 고정한다. 아래에서 보너스를 소모하면
     // 부모의 stageSeconds가 즉시 줄어드는데, 게이지가 그 값을 나눗셈 분모로 쓰면
     // (남은 20초 / 기준 15초) 처럼 100%를 넘겨 게이지가 멈춘 것처럼 보인다.
@@ -246,12 +292,29 @@ export function PuzzlePage({
   useEffect(() => {
     if (cleared && !clearedRef.current) {
       clearedRef.current = true;
+      logEvent("stage_clear", { stage });
       const reward = doubleRewardActive ? CLEAR_REWARD * 2 : CLEAR_REWARD;
       if (doubleRewardActive) onConsumeDoubleReward();
       setClearedReward(reward);
       onReward(reward);
       timer.setPaused(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleared]);
+
+  // [NEW 2026-09-11] 리뷰(별점) 요청 — 역대 최고를 새로 깬 5스테이지 이상 클리어에서만.
+  // 방금 성공했고 타이머도 멈춘 순간이라 리뷰 창이 떠도 손해가 없다. 실제로 요청할지(지원 여부·
+  // 세션당 1회·쿨다운)는 어댑터가 정하고, 흐름은 결과와 무관하게 그대로 이어진다(Android는 no-op).
+  // bestStage는 "다음 스테이지"로 넘어갈 때 갱신되므로, 여기서 stage > bestStage면 처음 깬 스테이지다.
+  // 지연 전에 다음 화면으로 넘어가면(cleared가 풀리거나 언마운트) cleanup이 요청을 취소한다.
+  useEffect(() => {
+    if (!cleared) return;
+    if (stage < REVIEW_REQUEST_MIN_STAGE || stage <= runState.bestStage) return;
+    const reviewTimer = setTimeout(
+      () => requestReview({ stage }),
+      REVIEW_REQUEST_DELAY_MS,
+    );
+    return () => clearTimeout(reviewTimer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cleared]);
 
@@ -291,6 +354,15 @@ export function PuzzlePage({
     // t는 언어가 바뀔 때만 새 참조가 되므로 deps에 넣어도 매 렌더 재실행되지 않는다.
   }, [timer.timeLeft, cleared, stage, t]);
 
+  // [FIX 2026-09-11] 재시도(무료·광고·공유) 공통 진입점 — 실패 카드를 세대 증가와 같은 렌더에서 내린다.
+  // 런 상태(재시도·광고·공유 사용 기록)는 즉시 바뀌는데 타이머 리셋은 아래 재시도 effect에서 한 박자
+  // 늦게 일어나서, 그 사이 한 렌더 동안 "실패 + 남은 수단 없음"으로 판정됐다 — 결과 카드가 한 프레임
+  // 번쩍이고, 그 순간 run_over·share_prompt_shown이 잘못 기록됐다(브라우저 검증에서 발견).
+  const startRetry = () => {
+    setShowFailureBanner(false);
+    setRetryGen((g) => g + 1);
+  };
+
   useEffect(() => {
     if (
       continueAd.lastReward &&
@@ -301,10 +373,11 @@ export function PuzzlePage({
       // [FIX 2026-08-28] 광고 이어하기는 런당 1회 — 여기서 소진 처리한다. 이후 같은 런에서
       // 다시 실패하면 canUseAdContinue=false라 runIsOver가 되어 game over로 넘어간다.
       runState.recordAdContinue();
+      logEvent("continue_used", { type: "ad", stage });
       // 예전엔 여기서 timer.reset만 하고 보드는 그대로 뒀다 — 그래서 광고 이어하기 후에도
       // 이전 판의 매치 진행·숨김(?)이 남아 사실상 풀 수 없는 판이 됐다. 무료 재시도와
       // 똑같이 세대를 올려, 아래 재시도 effect가 보드를 새로 깔고 상태를 전부 리셋하게 한다.
-      setRetryGen((g) => g + 1);
+      startRetry();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [continueAd.lastReward, stage]);
@@ -327,10 +400,69 @@ export function PuzzlePage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryGen]);
 
+  // [NEW 2026-09-11] 런 종료 계측 — 결과 카드가 실제로 뜬 순간 한 번. 유저가 "확인"을 누르지
+  // 않고 앱을 닫아도 잡히도록 버튼이 아니라 노출 시점에 건다. 광고 재로드 중에는 runIsOver가
+  // 잠깐 뒤집힐 수 있어(로딩 중엔 광고 단계로 돌아감) 런당 1회로 막는다.
+  useEffect(() => {
+    if (!showFailureBanner || !runIsOver || runOverLoggedRef.current) return;
+    runOverLoggedRef.current = true;
+    // 스테이지는 "이번 런이 끝난 스테이지"로 보낸다. 결과 카드의 clearedStage는 역대 최고
+    // 기록(runState.bestStage)이라 런이 어디서 끝났는지를 말해주지 않는다.
+    logEvent("run_over", {
+      reached_stage: stage,
+      best_stage: runState.bestStage,
+      new_record: isNewRecord,
+    });
+    // 기록 경신 런의 수 — "기록을 깼을 때 더 공유하나"의 분모가 된다.
+    if (isNewRecord) {
+      logEvent("record_break", {
+        best_stage: runState.bestStage,
+        prev_best: runState.bestStageAtRunStart,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFailureBanner, runIsOver]);
+
+  // [NEW 2026-09-11] 시간 초과 계측 — 실패 한 번마다 1회. 이어하기로 이어졌든 런이 끝났든 센다.
+  // next_step은 이 실패 뒤 남은 다음 수단이다(재시도 사다리의 어느 칸에서 떨어졌나).
+  useEffect(() => {
+    if (!failed) return;
+    const nextStep = runState.canRetry
+      ? "free"
+      : !adContinueUnavailable
+        ? "ad"
+        : !shareContinueUnavailable
+          ? "share"
+          : "over";
+    logEvent("stage_fail", { stage, next_step: nextStep });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failed]);
+
+  // [NEW 2026-09-11] 이어하기 단계 노출 계측 — 광고·공유 퍼널의 분모. 실패 한 번당 1회.
+  useEffect(() => {
+    if (!showFailureBanner) return;
+    if (isAdStep && adStepLoggedRef.current !== failureKey) {
+      adStepLoggedRef.current = failureKey;
+      logEvent("ad_continue_shown", { stage });
+    }
+    if (isShareStep && shareStepLoggedRef.current !== failureKey) {
+      shareStepLoggedRef.current = failureKey;
+      logEvent("share_continue_shown", { stage });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFailureBanner, isAdStep, isShareStep]);
+
+  // 화면을 떠날 때 열려 있던 공유 리워드 구독을 정리한다(SDK가 cleanup 호출을 요구한다).
+  // 언마운트 시점의 최신 값이 필요하므로 ref를 그대로 읽는다.
+  useEffect(() => {
+    return () => shareCleanupRef.current?.();
+  }, []);
+
   const handleTap = (tile: Tile) => {
     if (failed || cleared) return;
     if (wrongIds.length > 0) return;
     if (matchedIds.includes(tile.id)) return;
+    onPlay();
 
     if (selected.some((t) => t.id === tile.id)) {
       setSelected((prev) => prev.filter((t) => t.id !== tile.id));
@@ -344,11 +476,17 @@ export function PuzzlePage({
   const handleFreeRetry = () => {
     if (!runState.canRetry) return;
     runState.recordRetry();
-    // 세대만 올리면 위 재시도 effect가 보드 재생성·상태 리셋·타이머 리셋을 한곳에서 처리한다.
-    setRetryGen((g) => g + 1);
+    logEvent("continue_used", { type: "free", stage });
+    // startRetry가 세대를 올리면 위 재시도 effect가 보드 재생성·상태 리셋·타이머 리셋을 한곳에서 처리한다.
+    startRetry();
   };
 
   const handleShare = () => {
+    logEvent("share_result_click", {
+      reached_stage: stage,
+      best_stage: runState.bestStage,
+      new_record: isNewRecord,
+    });
     void sharePayload({
       message: t("puzzle.shareMessage", {
         icon: tier.icon,
@@ -361,6 +499,10 @@ export function PuzzlePage({
   // 리더보드 웹뷰를 열면 미니앱이 백그라운드로 전환된다. 이 시점엔 이미 타이머가
   // 만료된 런 종료 상태라 진행 중인 상태가 없어 별도 저장/일시정지가 필요 없다.
   const handleOpenLeaderboard = () => {
+    logEvent("leaderboard_open", {
+      reached_stage: stage,
+      best_stage: runState.bestStage,
+    });
     void openLeaderboard();
   };
 
@@ -372,8 +514,43 @@ export function PuzzlePage({
       });
       return;
     }
+    logEvent("ad_continue_click", { stage });
     continueAd.showAd();
   };
+
+  // [NEW 2026-09-11] "공유하고 한 판 더"(FR-20). 공유를 보냈으면 시트가 닫힐 때 이어하기를
+  // 준다 — 광고 이어하기와 똑같이 startRetry로 넘겨 보드·타이머 리셋을 재시도 effect에 맡긴다.
+  const handleShareContinue = () => {
+    if (isShareOpen) return;
+    logEvent("share_continue_click", { stage });
+    setIsShareOpen(true);
+    // 이번 시트에서 받은 코인 합계 — 닫힐 때 토스트로 한 번에 알린다.
+    let coinsFromThisSheet = 0;
+    shareCleanupRef.current = openShareReward({
+      // 친구 1명마다 코인은 바로 지급한다(토스 시트가 약속한 보상). 이어하기는 닫힐 때 아래서.
+      onSent: ({ coins }) => {
+        logEvent("share_continue_sent", { stage, coins });
+        if (coins <= 0) return;
+        coinsFromThisSheet += coins;
+        onReward(coins);
+      },
+      onClose: ({ rewarded }) => {
+        shareCleanupRef.current = null;
+        setIsShareOpen(false);
+        if (coinsFromThisSheet > 0) {
+          toast.openToast(
+            t("toast.shareRewardCoins", { amount: coinsFromThisSheet }),
+          );
+        }
+        if (!rewarded) return;
+        runState.recordShareContinue();
+        logEvent("continue_used", { type: "share", stage });
+        startRetry();
+      },
+    });
+  };
+
+  const handleDeclineShare = () => setShareDeclined(true);
 
   // [NEW 2026-08-11] 시안 A — 게이지 분모는 "이 스테이지의 기본 제한시간"으로 두고,
   // 시간 회복 보너스는 트랙 밖으로 덧붙여 그린다. 분모를 최대 시간(기본+보너스)으로
@@ -711,10 +888,12 @@ export function PuzzlePage({
                 {t("puzzle.timeUp")}
               </div>
               <div style={{ fontSize: "12px", color: colors.inkSecondary }}>
-                {t("puzzle.retriesUsed", {
-                  used: runState.retriesUsed,
-                  max: runState.maxRetries,
-                })}
+                {isShareStep
+                  ? t("puzzle.shareContinueHint", { limit: SHARE_REWARD_DAILY_LIMIT })
+                  : t("puzzle.retriesUsed", {
+                      used: runState.retriesUsed,
+                      max: runState.maxRetries,
+                    })}
               </div>
               {/* [FIX 2026-08-28] 단계적으로 노출한다 — ①무료 재시도가 남으면 그 버튼만,
                   ②소진되면 광고 이어하기 버튼만. '다시 도전'(런 리셋) 버튼은 제거했다:
@@ -726,6 +905,21 @@ export function PuzzlePage({
                   <Button size="small" variant="weak" onClick={handleFreeRetry}>
                     {t("puzzle.freeRetry")}
                   </Button>
+                ) : isShareStep ? (
+                  // [NEW 2026-09-11] ③ 광고까지 쓴 뒤의 마지막 기회 — 공유하고 한 판 더.
+                  // 거절할 길(결과 보기)을 같이 둔다: 공유를 강요하는 화면이 되면 안 된다.
+                  <>
+                    <Button
+                      size="small"
+                      loading={isShareOpen}
+                      onClick={handleShareContinue}
+                    >
+                      {t("puzzle.shareContinue")}
+                    </Button>
+                    <Button size="small" variant="weak" onClick={handleDeclineShare}>
+                      {t("puzzle.endRun")}
+                    </Button>
+                  </>
                 ) : (
                   <Button
                     size="small"

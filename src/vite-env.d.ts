@@ -18,6 +18,9 @@ interface ImportMetaEnv {
   // 검증하므로 사실상 필수지만, dev 서버는 통과시키므로 타입은 optional로 둔다.
   readonly VITE_TOSS_AD_BANNER?: string;
   readonly VITE_TOSS_AD_REWARDED_CONTINUE?: string;
+  // [NEW 2026-09-11] 앱인토스 공유 리워드 moduleId(콘솔 UUID). 비어 있으면
+  // "공유하고 한 판 더"(FR-20)가 꺼진다 — 빌드는 막지 않고 경고만 한다.
+  readonly VITE_TOSS_SHARE_REWARD_MODULE_ID?: string;
 }
 interface ImportMeta {
   readonly env: ImportMetaEnv;
