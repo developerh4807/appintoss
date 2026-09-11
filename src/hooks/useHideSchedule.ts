@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
-  graceRatioForStage,
+  graceMsForStage,
   HIDE_FLOOR_TILES,
   hideCapForRemaining,
 } from "../game/balance";
@@ -17,7 +17,7 @@ import {
 // 따라잡는 방식이라 후반의 ~256ms 간격도 한 틱에 여러 장을 숨겨 총량이 유지된다.
 
 interface UseHideScheduleParams {
-  /** 이 스테이지에 숨김이 적용되는지(1~3 유예 구간은 false). */
+  /** 이 스테이지에 숨김이 적용되는지(초반 유예 구간은 false — 경계는 플랫폼별). */
   enabled: boolean;
   stage: number;
   /** 이번 스테이지의 실제 제한시간(시간 회복 보너스 포함). 스케줄은 이 값에 비례한다. */
@@ -71,7 +71,9 @@ export function useHideSchedule({
     if (!enabled || isPaused) return;
 
     const elapsedMs = (stageSeconds - timeLeft) * 1000;
-    const graceMs = stageSeconds * 1000 * graceRatioForStage(stage);
+    // [UPDATED 2026-09-11] 비율 곡선을 직접 쓰지 않고 balance.ts에 위임한다 —
+    // 토스 초반 구간은 제한시간과 무관한 절대초 곡선이다(balance.HIDE_TUNING).
+    const graceMs = graceMsForStage(stage, stageSeconds);
     if (elapsedMs < graceMs) return;
 
     setHiddenIds((prev) => {
