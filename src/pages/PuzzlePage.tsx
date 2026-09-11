@@ -7,6 +7,7 @@ import {
   requestReview,
   sharePayload,
   useDialog,
+  useToast,
   vibrate,
 } from "@platform";
 import { useEffect, useRef, useState } from "react";
@@ -20,6 +21,7 @@ import {
   hideEnabledForStage,
   iconPoolForStage,
   MISMATCH_PENALTY_SECONDS,
+  SHARE_REWARD_DAILY_LIMIT,
   TIME_BOOST_BONUS_SECONDS,
 } from "../game/balance";
 import {
@@ -141,6 +143,7 @@ export function PuzzlePage({
   const [announcement, setAnnouncement] = useState("");
   const [clearedReward, setClearedReward] = useState(0);
   const dialog = useDialog();
+  const toast = useToast();
   const continueAd = useInAppAds(AD_GROUP_IDS.rewardedContinue);
   const clearedRef = useRef(false);
   const thresholdAnnouncedRef = useRef(false);
@@ -521,11 +524,24 @@ export function PuzzlePage({
     if (isShareOpen) return;
     logEvent("share_continue_click", { stage });
     setIsShareOpen(true);
+    // 이번 시트에서 받은 코인 합계 — 닫힐 때 토스트로 한 번에 알린다.
+    let coinsFromThisSheet = 0;
     shareCleanupRef.current = openShareReward({
-      onSent: () => logEvent("share_continue_sent", { stage }),
+      // 친구 1명마다 코인은 바로 지급한다(토스 시트가 약속한 보상). 이어하기는 닫힐 때 아래서.
+      onSent: ({ coins }) => {
+        logEvent("share_continue_sent", { stage, coins });
+        if (coins <= 0) return;
+        coinsFromThisSheet += coins;
+        onReward(coins);
+      },
       onClose: ({ rewarded }) => {
         shareCleanupRef.current = null;
         setIsShareOpen(false);
+        if (coinsFromThisSheet > 0) {
+          toast.openToast(
+            t("toast.shareRewardCoins", { amount: coinsFromThisSheet }),
+          );
+        }
         if (!rewarded) return;
         runState.recordShareContinue();
         logEvent("continue_used", { type: "share", stage });
@@ -873,7 +889,7 @@ export function PuzzlePage({
               </div>
               <div style={{ fontSize: "12px", color: colors.inkSecondary }}>
                 {isShareStep
-                  ? t("puzzle.shareContinueHint")
+                  ? t("puzzle.shareContinueHint", { limit: SHARE_REWARD_DAILY_LIMIT })
                   : t("puzzle.retriesUsed", {
                       used: runState.retriesUsed,
                       max: runState.maxRetries,

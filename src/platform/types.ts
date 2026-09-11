@@ -119,8 +119,8 @@ export interface AnalyticsEventMap {
   share_continue_shown: { stage: number };
   /** "친구에게 공유하고 한 판 더" 버튼 탭. */
   share_continue_click: { stage: number };
-  /** 공유 리워드 시트에서 친구에게 실제로 공유를 보낸 시점(sendViral). */
-  share_continue_sent: { stage: number };
+  /** 공유 리워드 시트에서 친구에게 실제로 공유를 보낸 시점(sendViral). coins = 지급한 코인(상한 초과면 0). */
+  share_continue_sent: { stage: number; coins: number };
   /**
    * 결과 카드의 일반 공유 버튼(FR-19, 보상 없음) 탭. 실제 전송 여부는 알 수 없다.
    * 콘솔 이름 share_result_click_record|norecord(기록 경신 여부).
@@ -153,8 +153,11 @@ export type LogScreenFn = (name: AnalyticsScreenName) => void;
 
 /** [NEW 2026-09-11] 공유 리워드(친구 초대) 시트의 결과 콜백 — PRD FR-20. */
 export interface ShareRewardHandlers {
-  /** 친구에게 공유를 보냈다. 한 번 열어서 여러 명에게 보내면 여러 번 올 수 있다. */
-  onSent: () => void;
+  /**
+   * 친구 한 명에게 공유를 보냈다 — 한 번 열어 여러 명에게 보내면 여러 번 온다.
+   * coins = 이번 공유로 지급할 코인(콘솔 공유 리워드 수량). 하루 상한을 넘었으면 0.
+   */
+  onSent: (reward: { coins: number }) => void;
   /**
    * 시트가 닫혔다 — 오류로 닫힌 경우를 포함해 한 번 열면 정확히 한 번 불린다.
    * rewarded = 이번에 공유를 한 번이라도 보냈는지. 보상(이어하기) 지급은 여기서 한다.

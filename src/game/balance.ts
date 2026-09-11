@@ -20,6 +20,9 @@ export const TIME_BOOST_BONUS_SECONDS = 5;
 // 토스앱이 지원하고 콘솔 공유 리워드 moduleId가 있을 때만(useRunState.shareUsed).
 // 광고 일일 상한(useDailyAdCap.ts, FR-16)은 광고 과다 노출 방지 장치라 성격이 달라 유지.
 export const FREE_RETRIES_PER_RUN = 2;
+// [NEW 2026-09-11] 공유 리워드 코인의 하루 상한(친구 수). 친구 1명마다 콘솔 수량만큼 코인을 주되
+// 하루 이 인원까지만 — 뽑기 희소성(items.ts PULL_COST)이 초대 반복으로 무너지지 않게 한다. 토스 전용.
+export const SHARE_REWARD_DAILY_LIMIT = 5;
 export const CRITICAL_TIME_RATIO = 0.25;
 
 export function initialSecondsForStage(stage: number): number {
