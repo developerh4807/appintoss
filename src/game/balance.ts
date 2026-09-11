@@ -1,6 +1,8 @@
 // PRD FR-3/FR-5/FR-7 밸런스 초안 — 정확한 수치는 플레이테스트로 조정 (addendum.md 참고)
 // [UPDATED 2026-08-11] 순차 숨김 도입 구간(스테이지 4~)의 경계로도 재사용된다 —
 // 새 상수를 만들지 않고 "유예 구간"이라는 같은 개념을 공유한다.
+// [UPDATED 2026-09-11] 토스 빌드는 숨김 시작만 스테이지 3으로 앞당겨 이 경계에서
+// 떨어져 나갔다(HIDE_TUNING 참고). 타이머 곡선과 graceRatioForStage는 그대로 쓴다.
 export const GRACE_STAGE_LIMIT = 3;
 const GRACE_SECONDS = 15;
 const TIME_DECREASE_PER_STAGE = 1;
@@ -131,7 +133,47 @@ export function hideCapForRemaining(remaining: number): number {
   return Math.floor(remaining * HIDE_CAP_RATIO);
 }
 
-/** 스테이지 4부터 순차 숨김이 적용된다. 1~3은 온보딩 유예 구간. */
+// [NEW 2026-09-11] 숨김 도입 시점의 플랫폼별 튜닝.
+//
+// 비율 곡선만 쓰면 초반 스테이지의 첫 ?가 6~7초에 뜨는데, 앞면 12~14장짜리 판은
+// 5~7초면 끝난다 — 즉 초반 4~5스테이지는 ?를 한 번도 못 보고 지나가 도전감이
+// 스테이지 6~7에야 생긴다. 그 전에 이탈할 위험이 커서 초반만 **절대초** 곡선으로
+// 첫 ?를 당긴다. 스테이지 10에서 비율 곡선과 만나므로 후반은 손대지 않는다.
+//
+// 난이도 SoT는 balance.ts 한 곳(스펙 AD-3)이라 어댑터로 옮기지 않고, 고르는 것이
+// SDK 구현이 아니라 **숫자 데이터**뿐이라 vite define(__PLATFORM__)의 "순수 데이터
+// 분기" 허용 범위에 든다. 빌드 타임 상수라 안 쓰는 쪽은 번들에서 빠진다.
+interface HideTuning {
+  /** 순차 숨김이 켜지는 첫 스테이지. */
+  startStage: number;
+  /** 있으면: mergeStage 미만 스테이지의 첫 숨김(grace)을 절대초 곡선으로 쓴다. */
+  earlyGrace?: { startSeconds: number; stepSeconds: number; mergeStage: number };
+}
+
+const HIDE_TUNING: HideTuning =
+  __PLATFORM__ === "toss"
+    ? // 토스 한정 — 스테이지 3부터, 첫 ?는 3.0초에서 스테이지당 0.12초씩 당긴다.
+      { startStage: 3, earlyGrace: { startSeconds: 3.0, stepSeconds: 0.12, mergeStage: 10 } }
+    : // Android(Play) — 현행 유지. 이탈 데이터가 쌓이면 이 값만 바꿔 적용한다.
+      { startStage: GRACE_STAGE_LIMIT + 1 };
+
+/** 이 스테이지에 순차 숨김이 적용되는지. 그 앞은 온보딩 유예 구간이다. */
 export function hideEnabledForStage(stage: number): boolean {
-  return stage > GRACE_STAGE_LIMIT;
+  return stage >= HIDE_TUNING.startStage;
+}
+
+/**
+ * 첫 숨김 전 관찰 시간(ms).
+ *
+ * 초반 절대초 구간에서는 제한시간과 무관하다 — 시간 회복 아이템(+5초)을 써도 첫 ?는
+ * 같은 시점에 뜨고 이후 간격만 늘어난다(의도된 동작).
+ */
+export function graceMsForStage(stage: number, stageSeconds: number): number {
+  const early = HIDE_TUNING.earlyGrace;
+  if (early && stage < early.mergeStage) {
+    return (
+      (early.startSeconds - (stage - HIDE_TUNING.startStage) * early.stepSeconds) * 1000
+    );
+  }
+  return stageSeconds * 1000 * graceRatioForStage(stage);
 }
