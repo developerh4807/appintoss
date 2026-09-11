@@ -41,16 +41,20 @@ export function scoreForRun(bestStage: number, secondsLeft = 0): number {
 // PRD §4.4에서 명시적으로 기각됐다. 티어는 과학적 측정을 함의하지 않는 재미 요소일 뿐이다.
 // [ASSUMPTION] 구간 경계는 플레이테스트로 조정 — ①의 난이도 커브 확정 후 재검토.
 // [UPDATED 2026-08-21] label 리터럴 → i18n 키. 표시 문자열은 호출부가 t()로 푼다.
+// [UPDATED 2026-09-11] 등급마다 결과 카드에 띄울 한 줄 메시지 키를 붙였다.
+// 낮은 등급은 도발("한 판 더"), 높은 등급은 자격부여("친구에게 자랑")로 톤이 갈린다 —
+// 재도전과 공유를 같은 카드에서 각각 다른 구간이 맡는다.
 const TIERS = [
-  { minStage: 20, labelKey: "tiers.cheetah", icon: "🐆" },
-  { minStage: 14, labelKey: "tiers.fox", icon: "🦊" },
-  { minStage: 9, labelKey: "tiers.deer", icon: "🦌" },
-  { minStage: 5, labelKey: "tiers.hippo", icon: "🦛" },
-  { minStage: 1, labelKey: "tiers.sloth", icon: "🦥" },
+  { minStage: 20, labelKey: "tiers.cheetah", messageKey: "tierMessages.cheetah", icon: "🐆" },
+  { minStage: 14, labelKey: "tiers.fox", messageKey: "tierMessages.fox", icon: "🦊" },
+  { minStage: 9, labelKey: "tiers.deer", messageKey: "tierMessages.deer", icon: "🦌" },
+  { minStage: 5, labelKey: "tiers.hippo", messageKey: "tierMessages.hippo", icon: "🦛" },
+  { minStage: 1, labelKey: "tiers.sloth", messageKey: "tierMessages.sloth", icon: "🦥" },
 ] as const;
 
 export interface Tier {
   labelKey: string;
+  messageKey: string;
   icon: string;
 }
 

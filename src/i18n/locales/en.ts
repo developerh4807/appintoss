@@ -36,7 +36,7 @@ export const en = {
     adCapTitle: "You've used all of today's ad views",
     adCapDescription: "Please try again tomorrow.",
     shareMessage:
-      "{{icon}} [One Miss, Game Over] Reflex rank: {{tier}}! I cleared up to stage {{stage}}. Wanna try?",
+      "{{icon}} {{tier}} · Stage {{stage}} cleared!!! Think you can beat that?\n[One Miss, Game Over]",
     a11yTimeUp: "Time's up. You failed this stage.",
     a11yTimeLow: "Not much time left.",
     a11yHiddenTile: "Hidden tile",
@@ -83,6 +83,13 @@ export const en = {
     deer: "Deer",
     hippo: "Hippo",
     sloth: "Sloth",
+  },
+  tierMessages: {
+    cheetah: "Cheetah rank 🐆 Can any of your friends beat this?",
+    fox: "Fox rank! You've earned bragging rights.",
+    deer: "Deer rank — not bad! Think your friends can get this far?",
+    hippo: "Too good to stop at Hippo. One more round?",
+    sloth: "Only stage {{stage}}? Even a sloth moves faster than that 🦥",
   },
   disguises: {
     sunglasses: "sunglasses",

@@ -847,6 +847,19 @@ export function PuzzlePage({
                 </div>
               </div>
 
+              {/* [NEW 2026-09-11] 등급별 도발/자격부여 한 줄. 카드에서 가장 눈에 띄는 문장으로
+                  등급 행 바로 아래 둔다. {{stage}}는 sloth만 쓰지만 모든 등급에 넘겨도 무해하다. */}
+              <div
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  color: colors.inkPrimary,
+                  lineHeight: 1.4,
+                }}
+              >
+                {t(tier.messageKey, { stage: clearedStage })}
+              </div>
+
               <div style={{ fontSize: "13px", color: colors.inkSecondary, lineHeight: 1.5 }}>
                 {isNewRecord ? (
                   <strong>{t("puzzle.newRecord")}</strong>
