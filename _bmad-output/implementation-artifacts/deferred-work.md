@@ -88,8 +88,8 @@
 >
 > | 갈래 | 항목 | 비고 |
 > |---|---|---|
-> | 코드 | FR-20 초대 보상(`contactsViral`) | 미구현. 이 문서에 남은 유일한 미구현 FR |
-> | 코드 | 테스트 러너 부재, localStorage 실패 UI | 비차단 개선점 |
+> | 코드 | FR-20 초대 보상(`contactsViral`) | 🟡 코드 완료 / QR 미검증 `[2026-09-11]` — 브랜치 `feat/growth-analytics-share-reward`, 콘솔 공유 리워드 moduleId 발급 대기 |
+> | 코드 | localStorage 실패 UI | 비차단 개선점 |
 > | 코드 | Android 공유에 링크 없음 | `navigator.share({text})`만 — Play 스토어 URL 미첨부 |
 > | 문서 | Android `adIds.ts` 주석/코드 불일치 | 주석은 both-or-nothing인데 코드는 필드별 폴백. `isTesting`이 별도로 막아줘 실피해는 없음 |
 >
@@ -175,7 +175,7 @@
 
 **Source:** step-01 multi-goal split, 2026-07-18(구 FR 라벨) → 2026-07-19 FR 번호 정정 + FR-17 추가. PRD §4.3 참고.
 
-## 결과 카드 + 공유 + 초대 보상 (FR-18 ✅ / FR-19 ✅ / **FR-20 미구현**)
+## 결과 카드 + 공유 + 초대 보상 (FR-18 ✅ / FR-19 ✅ / **FR-20 🟡 코드 완료 / QR 미검증** `[2026-09-11]`)
 
 `[갱신 2026-08-11]` **FR-18(동물 티어 결과 카드)과 FR-19(공유)는 완료**됐다(④ 참고). 티어는 나무늘보급→하마급→사슴급→여우급→치타급 5단계로 구현됐고, 런 종료 시점에 도달 스테이지·점수와 함께 노출된다.
 
@@ -193,14 +193,12 @@
 
 **Source:** implementation-readiness-report-2026-07-19.md Step 3(Epic Coverage Validation) 발견 → 2026-07-19 신규 추가. PRD §4.1 FR-1~9, `game-architecture.md` Novel Pattern 참고.
 
-## 퍼즐 코어루프 — 리뷰에서 나온 비차단 개선점 (2/4 해소)
+## 퍼즐 코어루프 — 리뷰에서 나온 비차단 개선점 (2/4 해소, 1건 제외)
 
-`src/game/patternMatch.ts`, `src/hooks/useCurrency.ts`, `src/pages/PuzzlePage.tsx` 리뷰(step-04, 2026-07-18)에서 나온 항목들. `[갱신 2026-08-11]` 4건 중 2건이 해소됐다.
+`src/game/patternMatch.ts`, `src/hooks/useCurrency.ts`, `src/pages/PuzzlePage.tsx` 리뷰(step-04, 2026-07-18)에서 나온 항목들. `[갱신 2026-08-11]` 4건 중 2건이 해소됐다. `[갱신 2026-09-11]` 순수 게임 로직 유닛테스트(테스트 러너 도입) 항목은 할 일에서 제외했다.
 
 **남은 항목:**
 
-- **순수 게임 로직 유닛테스트 부재** — `tilesForStage`/`generateBoard`/`isMatch`는 부작용 없는 순수 함수라 테스트하기 쉬운데 테스트가 없음. 프로젝트에 테스트 러너 자체가 아직 없음(package.json에 test 스크립트 없음). 7일 출시 스코프에서는 의도적으로 제외.
-  - `[중요도 상승 2026-08-11]` ①에서 `generateBoard`가 (아이콘, 변장) 조합 생성으로 복잡해졌고, **실제로 여기서 버그가 났다**(변장이 전부 한 종류로 몰림 — dev play 스크린샷으로만 발견). 구간표를 손댈 때 조용히 깨질 수 있는 구조라 유닛테스트 가치가 올라갔다. 조합 공간 검산은 일회성 스크립트로 확인했을 뿐 회귀 방지 장치가 없다.
 - **localStorage 쓰기 실패가 UI에 드러나지 않음** — quota 초과/프라이빗 브라우징 등으로 `setItem`이 실패하면 콘솔 에러만 남고, 새로고침 시 진행도가 조용히 되돌아감.
   - `[중요도 상승 2026-08-11]` ②에서 **최고기록(`bestStage`)이 여기 저장**되면서 중요도가 올라갔다. 조용히 실패하면 유저가 경신한 기록이 사라진다. `useRunState.ts`도 같은 패턴(`console.error`만)이다.
 
@@ -440,8 +438,7 @@ localhost(granite dev)에서는 확인할 수 없어 **QR 실기기 테스트가
 
 ### 3. 코드 — 남은 구현
 
-- [ ] **FR-20 초대 보상(`contactsViral`)** — 유일하게 미구현인 FR. 미니앱 승인 후에만 노출 가능.
-- [ ] **순수 게임 로직 유닛테스트** — ① 이후 `generateBoard`가 복잡해졌고 실제로 여기서 버그가 났다. 회귀 방지 장치가 없다.
+- [ ] **FR-20 초대 보상(`contactsViral`)** — `[2026-09-11]` 🟡 코드 완료 / QR 미검증. `Promotion.openContactsInvite` + 재시도 사다리 "공유하고 한 판 더"(무료 2 → 광고 1 → 공유 1). 콘솔 moduleId 발급 → QR 검증 후 ✅.
 - [ ] **localStorage 쓰기 실패 UI 노출** — 최고기록이 걸려 중요도가 올라갔다.
 
 > ⚠️ **주의: `npx tsc --noEmit`은 아무것도 검사하지 않는다.** 루트 `tsconfig.json`이 `"files": []` + project references 구조라 그렇다. 실제 타입 검사는 **`npx tsc -b`** 를 써야 한다 — 08-11에 import 누락이 이 틈으로 빠져나가 런타임 크래시가 났다.
