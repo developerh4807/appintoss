@@ -41,3 +41,8 @@ android/capacitor-cordova-android-plugins/
 android/keystore.properties
 release.keystore
 upload-keystore.jks
+
+# Claude Code 스킬 — 전역 .gitignore가 .claude를 막으므로 예외를 둔다
+!.claude/
+.claude/*
+!.claude/skills/
