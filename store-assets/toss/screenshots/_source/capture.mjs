@@ -391,7 +391,6 @@ async function shot2(cdp) {
     "appintoss.puzzle.runState": JSON.stringify({
       retriesUsed: 0,
       adUsed: false,
-      shareUsed: false,
       bestStage: 20,
       bestStageAtRunStart: 20,
     }),
