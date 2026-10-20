@@ -100,13 +100,13 @@ export interface AnalyticsEventMap {
    * 시간 초과로 스테이지 실패 — 실패 한 번마다 1회. next_step = 이 실패 뒤 남은 다음 수단.
    * 콘솔 이름 stage_fail_s05_08 등(스테이지 구간).
    */
-  stage_fail: { stage: number; next_step: "free" | "ad" | "share" | "over" };
+  stage_fail: { stage: number; next_step: "free" | "ad" | "over" };
   /** 이어하기 수단을 모두 소진해 결과 카드가 뜬 시점(런 종료). 콘솔 이름 run_over_s05_08 등. */
   run_over: { reached_stage: number; best_stage: number; new_record: boolean };
   /** 최고 기록을 경신하고 끝난 런(run_over와 같은 순간 1회) — 기록 경신 런의 분모. */
   record_break: { best_stage: number; prev_best: number };
-  /** 실패 후 이어하기를 실제로 쓴 시점. 콘솔 이름 continue_used_free|ad|share. */
-  continue_used: { type: "free" | "ad" | "share"; stage: number };
+  /** 실패 후 이어하기를 실제로 쓴 시점. 콘솔 이름 continue_used_free|ad. */
+  continue_used: { type: "free" | "ad"; stage: number };
   /** 광고 이어하기 단계가 뜬 시점(실패 한 번당 1회) — 광고 퍼널의 분모. */
   ad_continue_shown: { stage: number };
   /** "광고 보고 이어하기" 버튼 탭. */
@@ -115,12 +115,6 @@ export interface AnalyticsEventMap {
   ad_shown: { format: "banner" | "rewarded" };
   /** 광고 소재 클릭(SDK 클릭 이벤트 기준). 콘솔 이름 ad_click_banner|rewarded. */
   ad_click: { format: "banner" | "rewarded" };
-  /** "공유하고 한 판 더" 단계가 뜬 시점(실패 한 번당 1회) — 공유 퍼널의 분모. */
-  share_continue_shown: { stage: number };
-  /** "친구에게 공유하고 한 판 더" 버튼 탭. */
-  share_continue_click: { stage: number };
-  /** 공유 리워드 시트에서 친구에게 실제로 공유를 보낸 시점(sendViral). coins = 지급한 코인(상한 초과면 0). */
-  share_continue_sent: { stage: number; coins: number };
   /**
    * 결과 카드의 일반 공유 버튼(FR-19, 보상 없음) 탭. 실제 전송 여부는 알 수 없다.
    * 콘솔 이름 share_result_click_record|norecord(기록 경신 여부).
@@ -150,20 +144,6 @@ export type LogEventFn = <K extends AnalyticsEventName>(
   params: AnalyticsEventMap[K],
 ) => void;
 export type LogScreenFn = (name: AnalyticsScreenName) => void;
-
-/** [NEW 2026-09-11] 공유 리워드(친구 초대) 시트의 결과 콜백 — PRD FR-20. */
-export interface ShareRewardHandlers {
-  /**
-   * 친구 한 명에게 공유를 보냈다 — 한 번 열어 여러 명에게 보내면 여러 번 온다.
-   * coins = 이번 공유로 지급할 코인(콘솔 공유 리워드 수량). 하루 상한을 넘었으면 0.
-   */
-  onSent: (reward: { coins: number }) => void;
-  /**
-   * 시트가 닫혔다 — 오류로 닫힌 경우를 포함해 한 번 열면 정확히 한 번 불린다.
-   * rewarded = 이번에 공유를 한 번이라도 보냈는지. 보상(이어하기) 지급은 여기서 한다.
-   */
-  onClose: (result: { rewarded: boolean }) => void;
-}
 
 /**
  * [NEW 2026-09-11] 리뷰(별점) 요청. 호출부는 "만족스러운 순간"이라는 사실만 알리고, 실제로

@@ -1,13 +1,10 @@
 import {
   AD_GROUP_IDS,
   Button,
-  isShareRewardSupported,
   logEvent,
-  openShareReward,
   requestReview,
   sharePayload,
   useDialog,
-  useToast,
   vibrate,
 } from "@platform";
 import { useEffect, useRef, useState } from "react";
@@ -21,7 +18,6 @@ import {
   hideEnabledForStage,
   iconPoolForStage,
   MISMATCH_PENALTY_SECONDS,
-  SHARE_REWARD_DAILY_LIMIT,
   TIME_BOOST_BONUS_SECONDS,
 } from "../game/balance";
 import {
@@ -69,12 +65,10 @@ interface RunState {
   maxRetries: number;
   canRetry: boolean;
   canUseAdContinue: boolean;
-  canUseShareContinue: boolean;
   bestStage: number;
   bestStageAtRunStart: number;
   recordRetry: () => void;
   recordAdContinue: () => void;
-  recordShareContinue: () => void;
 }
 
 interface PuzzlePageProps {
@@ -143,26 +137,16 @@ export function PuzzlePage({
   const [announcement, setAnnouncement] = useState("");
   const [clearedReward, setClearedReward] = useState(0);
   const dialog = useDialog();
-  const toast = useToast();
   const continueAd = useInAppAds(AD_GROUP_IDS.rewardedContinue);
   const clearedRef = useRef(false);
   const thresholdAnnouncedRef = useRef(false);
   const failureAnnouncedRef = useRef(false);
   const handledRewardRef = useRef<typeof continueAd.lastReward>(null);
-  // [NEW 2026-09-11] 공유 리워드("공유하고 한 판 더", FR-20) 상태.
-  // 지원 여부는 마운트 때 한 번만 판정한다 — 토스앱 버전·moduleId는 세션 중에 바뀌지 않는다.
-  const [shareRewardSupported] = useState(isShareRewardSupported);
-  // 시트가 떠 있는 동안 버튼을 잠근다 — 두 번 눌러 시트가 겹쳐 뜨지 않게.
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  // 공유 단계에서 "결과 보기"를 고르면 이번 런은 거기서 끝낸다.
-  const [shareDeclined, setShareDeclined] = useState(false);
-  const shareCleanupRef = useRef<(() => void) | null>(null);
   // 런 종료(run_over) 계측을 런당 1회로 막는 플래그.
   const runOverLoggedRef = useRef(false);
-  // 이어하기 단계 노출 계측(ad_continue_shown·share_continue_shown)을 "실패 한 번당 1회"로
+  // 이어하기 단계 노출 계측(ad_continue_shown)을 "실패 한 번당 1회"로
   // 막는 키. 광고 로딩 상태가 오가면서 같은 실패 카드에서 단계가 다시 판정될 수 있어서다.
   const adStepLoggedRef = useRef<string | null>(null);
-  const shareStepLoggedRef = useRef<string | null>(null);
   // 이번 스테이지에 실제로 적용된 제한시간(보너스 포함). 보너스를 소모해도 이 값은
   // 스테이지가 끝날 때까지 유지돼 게이지 비율의 분모로 안전하게 쓸 수 있다.
   const activeStageSecondsRef = useRef(stageSeconds);
@@ -207,17 +191,9 @@ export function PuzzlePage({
     !continueAd.isSupported ||
     !adCap.canWatch ||
     (!continueAd.isAdLoaded && !continueAd.isLoading);
-  // [NEW 2026-09-11] 광고 다음 단계 — "공유하고 한 판 더"(FR-20, 런당 1회). 토스앱이 지원하고
-  // 콘솔 공유 리워드 moduleId가 있을 때만 존재한다(Android·moduleId 없는 번들은 이 단계가 없다).
-  // 유저가 "결과 보기"로 거절하면 이번 런은 거기서 끝낸다.
-  const shareContinueUnavailable =
-    !shareRewardSupported || !runState.canUseShareContinue || shareDeclined;
-  const isShareStep =
-    !runState.canRetry && adContinueUnavailable && !shareContinueUnavailable;
-  // 무료도 소진하고 광고도 볼 수 없고 공유 단계도 없으면 이번 런은 끝 — game over 결과 카드로
+  // 무료도 소진하고 광고도 볼 수 없으면 이번 런은 끝 — game over 결과 카드로
   // 분기한다. ('다시 도전' 버튼을 없앤 대신, 갇히지 않도록 여기서 자동으로 결과 카드를 띄운다.)
-  const runIsOver =
-    !runState.canRetry && adContinueUnavailable && shareContinueUnavailable;
+  const runIsOver = !runState.canRetry && adContinueUnavailable;
   // 광고 이어하기 단계가 떠 있는지(로딩 중 포함) — 광고 퍼널 첫 단계 계측용.
   const isAdStep = !runState.canRetry && !adContinueUnavailable;
   // 실패 한 번을 가리키는 키. 런·스테이지·재시도 세대가 같으면 같은 실패 카드다.
@@ -239,8 +215,7 @@ export function PuzzlePage({
     clearedRef.current = false;
     thresholdAnnouncedRef.current = false;
     failureAnnouncedRef.current = false;
-    // 새 런이 시작되면 공유 거절 여부와 런 종료 계측 플래그도 초기화한다.
-    setShareDeclined(false);
+    // 새 런이 시작되면 런 종료 계측 플래그도 초기화한다.
     runOverLoggedRef.current = false;
     // 이번 스테이지 동안 쓸 제한시간을 여기서 고정한다. 아래에서 보너스를 소모하면
     // 부모의 stageSeconds가 즉시 줄어드는데, 게이지가 그 값을 나눗셈 분모로 쓰면
@@ -431,32 +406,20 @@ export function PuzzlePage({
       ? "free"
       : !adContinueUnavailable
         ? "ad"
-        : !shareContinueUnavailable
-          ? "share"
-          : "over";
+        : "over";
     logEvent("stage_fail", { stage, next_step: nextStep });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [failed]);
 
-  // [NEW 2026-09-11] 이어하기 단계 노출 계측 — 광고·공유 퍼널의 분모. 실패 한 번당 1회.
+  // [NEW 2026-09-11] 이어하기 단계 노출 계측 — 광고 퍼널의 분모. 실패 한 번당 1회.
   useEffect(() => {
     if (!showFailureBanner) return;
     if (isAdStep && adStepLoggedRef.current !== failureKey) {
       adStepLoggedRef.current = failureKey;
       logEvent("ad_continue_shown", { stage });
     }
-    if (isShareStep && shareStepLoggedRef.current !== failureKey) {
-      shareStepLoggedRef.current = failureKey;
-      logEvent("share_continue_shown", { stage });
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showFailureBanner, isAdStep, isShareStep]);
-
-  // 화면을 떠날 때 열려 있던 공유 리워드 구독을 정리한다(SDK가 cleanup 호출을 요구한다).
-  // 언마운트 시점의 최신 값이 필요하므로 ref를 그대로 읽는다.
-  useEffect(() => {
-    return () => shareCleanupRef.current?.();
-  }, []);
+  }, [showFailureBanner, isAdStep]);
 
   const handleTap = (tile: Tile) => {
     if (failed || cleared) return;
@@ -517,40 +480,6 @@ export function PuzzlePage({
     logEvent("ad_continue_click", { stage });
     continueAd.showAd();
   };
-
-  // [NEW 2026-09-11] "공유하고 한 판 더"(FR-20). 공유를 보냈으면 시트가 닫힐 때 이어하기를
-  // 준다 — 광고 이어하기와 똑같이 startRetry로 넘겨 보드·타이머 리셋을 재시도 effect에 맡긴다.
-  const handleShareContinue = () => {
-    if (isShareOpen) return;
-    logEvent("share_continue_click", { stage });
-    setIsShareOpen(true);
-    // 이번 시트에서 받은 코인 합계 — 닫힐 때 토스트로 한 번에 알린다.
-    let coinsFromThisSheet = 0;
-    shareCleanupRef.current = openShareReward({
-      // 친구 1명마다 코인은 바로 지급한다(토스 시트가 약속한 보상). 이어하기는 닫힐 때 아래서.
-      onSent: ({ coins }) => {
-        logEvent("share_continue_sent", { stage, coins });
-        if (coins <= 0) return;
-        coinsFromThisSheet += coins;
-        onReward(coins);
-      },
-      onClose: ({ rewarded }) => {
-        shareCleanupRef.current = null;
-        setIsShareOpen(false);
-        if (coinsFromThisSheet > 0) {
-          toast.openToast(
-            t("toast.shareRewardCoins", { amount: coinsFromThisSheet }),
-          );
-        }
-        if (!rewarded) return;
-        runState.recordShareContinue();
-        logEvent("continue_used", { type: "share", stage });
-        startRetry();
-      },
-    });
-  };
-
-  const handleDeclineShare = () => setShareDeclined(true);
 
   // [NEW 2026-08-11] 시안 A — 게이지 분모는 "이 스테이지의 기본 제한시간"으로 두고,
   // 시간 회복 보너스는 트랙 밖으로 덧붙여 그린다. 분모를 최대 시간(기본+보너스)으로
@@ -901,12 +830,10 @@ export function PuzzlePage({
                 {t("puzzle.timeUp")}
               </div>
               <div style={{ fontSize: "12px", color: colors.inkSecondary }}>
-                {isShareStep
-                  ? t("puzzle.shareContinueHint", { limit: SHARE_REWARD_DAILY_LIMIT })
-                  : t("puzzle.retriesUsed", {
-                      used: runState.retriesUsed,
-                      max: runState.maxRetries,
-                    })}
+                {t("puzzle.retriesUsed", {
+                  used: runState.retriesUsed,
+                  max: runState.maxRetries,
+                })}
               </div>
               {/* [FIX 2026-08-28] 단계적으로 노출한다 — ①무료 재시도가 남으면 그 버튼만,
                   ②소진되면 광고 이어하기 버튼만. '다시 도전'(런 리셋) 버튼은 제거했다:
@@ -918,21 +845,6 @@ export function PuzzlePage({
                   <Button size="small" variant="weak" onClick={handleFreeRetry}>
                     {t("puzzle.freeRetry")}
                   </Button>
-                ) : isShareStep ? (
-                  // [NEW 2026-09-11] ③ 광고까지 쓴 뒤의 마지막 기회 — 공유하고 한 판 더.
-                  // 거절할 길(결과 보기)을 같이 둔다: 공유를 강요하는 화면이 되면 안 된다.
-                  <>
-                    <Button
-                      size="small"
-                      loading={isShareOpen}
-                      onClick={handleShareContinue}
-                    >
-                      {t("puzzle.shareContinue")}
-                    </Button>
-                    <Button size="small" variant="weak" onClick={handleDeclineShare}>
-                      {t("puzzle.endRun")}
-                    </Button>
-                  </>
                 ) : (
                   <Button
                     size="small"
